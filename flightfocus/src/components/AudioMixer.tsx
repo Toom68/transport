@@ -11,11 +11,11 @@ import { useFlightStore } from '@/store/flightStore';
 import { useThemeStore } from '@/store/themeStore';
 import { audioEngine } from '@/utils/audio';
 import type { AudioChannel, AudioPreset } from '@/types/simulation';
-import type { FlightPhase } from '@/types/flight';
+import type { JourneyPhase } from '@/types/journey';
 
 // Auto (phase-driven) channel volumes. Channels not listed are left to the user.
 type AutoMap = Partial<Record<string, number>>;
-const PHASE_AUTO: Record<FlightPhase, AutoMap> = {
+const PHASE_AUTO: Record<JourneyPhase, AutoMap> = {
   BOARDING: { boarding: 0.6, engine: 0, hvac: 0.2, cabin: 0.15, wind: 0, pressure: 0 },
   TAXI: { boarding: 0.1, engine: 0.3, hvac: 0.25, cabin: 0.2, wind: 0, pressure: 0 },
   TAKEOFF: { boarding: 0, engine: 0.85, hvac: 0.3, cabin: 0.1, wind: 0.3, pressure: 0 },
@@ -24,12 +24,18 @@ const PHASE_AUTO: Record<FlightPhase, AutoMap> = {
   DESCENT: { boarding: 0, engine: 0.4, hvac: 0.35, cabin: 0.25, wind: 0.3, pressure: 0.4 },
   APPROACH: { boarding: 0, engine: 0.45, hvac: 0.3, cabin: 0.2, wind: 0.15, pressure: 0.2 },
   LANDING: { boarding: 0, engine: 0.55, hvac: 0.25, cabin: 0.15, wind: 0.1, pressure: 0 },
+  DEPARTING: { boarding: 0.3, engine: 0.2, hvac: 0.2, cabin: 0.15, wind: 0.1, pressure: 0 },
+  DRIVING: { boarding: 0, engine: 0.5, hvac: 0.3, cabin: 0.2, wind: 0.3, pressure: 0 },
+  ARRIVING: { boarding: 0, engine: 0.35, hvac: 0.25, cabin: 0.2, wind: 0.15, pressure: 0 },
+  SAILING: { boarding: 0, engine: 0.3, hvac: 0.25, cabin: 0.2, wind: 0.4, pressure: 0 },
+  DOCKING: { boarding: 0.1, engine: 0.2, hvac: 0.2, cabin: 0.15, wind: 0.2, pressure: 0 },
   ARRIVED: { boarding: 0.4, engine: 0.08, hvac: 0.15, cabin: 0.2, wind: 0, pressure: 0 },
 };
 
-const ENGINE_FILTER_BY_PHASE: Partial<Record<FlightPhase, number>> = {
+const ENGINE_FILTER_BY_PHASE: Partial<Record<JourneyPhase, number>> = {
   BOARDING: 80, TAXI: 110, TAKEOFF: 220, CLIMB: 170, CRUISE: 130,
   DESCENT: 110, APPROACH: 140, LANDING: 170, ARRIVED: 70,
+  DEPARTING: 100, DRIVING: 120, ARRIVING: 100, SAILING: 90, DOCKING: 80,
 };
 
 const PRESET_ICONS: Record<AudioPreset, typeof Sparkles> = {
@@ -87,7 +93,7 @@ export function AudioMixer() {
   }, [isInitialized, setInitialized]);
 
   // Cabin chimes + takeoff/landing one-shots fired on phase transitions.
-  const prevPhaseRef = useRef<FlightPhase | null>(null);
+  const prevPhaseRef = useRef<JourneyPhase | null>(null);
   useEffect(() => {
     if (!isInitialized) {
       prevPhaseRef.current = phase;
@@ -144,7 +150,7 @@ export function AudioMixer() {
 
   // Auto (phase-driven) mode: drive managed channels from the flight phase.
   // While grounded, treat it as gate ambience (BOARDING profile).
-  const effectivePhase: FlightPhase = isActive ? phase : 'BOARDING';
+  const effectivePhase: JourneyPhase = isActive ? phase : 'BOARDING';
   useEffect(() => {
     if (!isInitialized || activePreset !== 'auto') return;
     const targets = PHASE_AUTO[effectivePhase];

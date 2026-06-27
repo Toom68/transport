@@ -16,7 +16,7 @@ function iconByName(name: string): LucideIcon {
 export function ArrivalModal() {
   const {
     departure, arrival, route, sessionRealSeconds, cruiseRealSeconds, departedLocalHour,
-    arrivalProcessed, markArrivalProcessed, setDeparture, returnToGrounded,
+    arrivalProcessed, markArrivalProcessed, setDeparture, returnToGrounded, transportMode,
   } = useFlightStore();
   const { recordArrival, fillJournalEntry } = useSavegameStore();
 
@@ -34,6 +34,7 @@ export function ArrivalModal() {
     const res = recordArrival({
       from: departure,
       to: arrival,
+      transportMode,
       ambientMinutes: sessionRealSeconds / 60,
       cruiseMinutes: cruiseRealSeconds / 60,
       departedLocalHour: departedLocalHour ?? undefined,
