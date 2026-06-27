@@ -1,0 +1,348 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Theme CSS Variables ── */
+:root {
+  --color-base: #e8e0d0;
+  --color-panel: rgba(252, 248, 240, 0.88);
+  --color-panel-solid: #faf6ee;
+  --color-dim: #ddd4c0;
+  --color-dim-soft: rgba(221, 212, 192, 0.5);
+  --color-border: rgba(180, 170, 145, 0.4);
+  --color-border-solid: #c4b89e;
+  --color-text-primary: #3d3528;
+  --color-text-secondary: #6b6150;
+  --color-text-muted: #968b76;
+  --color-accent: #0284c7;
+  --color-accent-soft: rgba(2, 132, 199, 0.18);
+  --color-accent-medium: rgba(2, 132, 199, 0.25);
+  --color-accent-border: rgba(2, 132, 199, 0.3);
+  --color-gold: #d97706;
+  --color-gold-soft: rgba(217, 119, 6, 0.18);
+  --color-gold-medium: rgba(217, 119, 6, 0.25);
+  --color-gold-border: rgba(217, 119, 6, 0.3);
+  --color-input-bg: #f5f0e4;
+  --color-input-border: #c4b89e;
+  --color-overlay: rgba(61, 53, 40, 0.4);
+  --color-hover: #ddd4c0;
+  --color-disabled-bg: #c4b89e;
+  --color-disabled-text: #968b76;
+  --map-bg: #ddd4c0;
+  --map-tiles: light;
+  --scrollbar-thumb: #b8ad94;
+  --scrollbar-hover: #968b76;
+  --eq-track: rgba(61, 53, 40, 0.1);
+  --eq-thumb-border: rgba(125, 211, 252, 0.5);
+}
+
+.dark {
+  --color-base: #0a0f1a;
+  --color-panel: rgba(15, 23, 42, 0.82);
+  --color-panel-solid: #0f172a;
+  --color-dim: rgba(30, 41, 59, 0.5);
+  --color-dim-soft: rgba(30, 41, 59, 0.3);
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-solid: rgba(255, 255, 255, 0.12);
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-accent: #38bdf8;
+  --color-accent-soft: rgba(56, 189, 248, 0.20);
+  --color-accent-medium: rgba(56, 189, 248, 0.25);
+  --color-accent-border: rgba(56, 189, 248, 0.3);
+  --color-gold: #fbbf24;
+  --color-gold-soft: rgba(251, 191, 36, 0.18);
+  --color-gold-medium: rgba(251, 191, 36, 0.25);
+  --color-gold-border: rgba(251, 191, 36, 0.3);
+  --color-input-bg: rgba(15, 23, 42, 0.5);
+  --color-input-border: rgba(255, 255, 255, 0.08);
+  --color-overlay: rgba(0, 0, 0, 0.8);
+  --color-hover: rgba(30, 41, 59, 0.5);
+  --color-disabled-bg: rgba(30, 41, 59, 0.5);
+  --color-disabled-text: #475569;
+  --map-bg: #070d1a;
+  --map-tiles: dark;
+  --scrollbar-thumb: #334155;
+  --scrollbar-hover: #475569;
+  --eq-track: rgba(255, 255, 255, 0.06);
+  --eq-thumb-border: rgba(56, 189, 248, 0.4);
+}
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+  }
+
+  /* Use dynamic viewport height on mobile to handle browser chrome */
+  @supports (height: 100dvh) {
+    .h-screen-dvh {
+      height: 100dvh;
+    }
+    .min-h-screen-dvh {
+      min-height: 100dvh;
+    }
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 2px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-hover);
+  }
+
+  button {
+    transition: all 0.2s ease;
+  }
+
+  button:active {
+    transform: scale(0.98);
+  }
+}
+
+@layer utilities {
+  /* Theme-aware background utilities */
+  .bg-theme-base { background-color: var(--color-base); }
+  .bg-theme-panel { background-color: var(--color-panel); }
+  .bg-theme-panel-solid { background-color: var(--color-panel-solid); }
+  .bg-theme-dim { background-color: var(--color-dim); }
+  .bg-theme-dim-soft { background-color: var(--color-dim-soft); }
+  .bg-theme-accent { background-color: var(--color-accent); }
+  .bg-theme-accent-soft { background-color: var(--color-accent-soft); }
+  .bg-theme-accent-medium { background-color: var(--color-accent-medium); }
+  .bg-theme-gold { background-color: var(--color-gold); }
+  .bg-theme-gold-soft { background-color: var(--color-gold-soft); }
+  .bg-theme-gold-medium { background-color: var(--color-gold-medium); }
+  .bg-theme-overlay { background-color: var(--color-overlay); }
+  .bg-theme-hover { background-color: var(--color-hover); }
+  .bg-theme-disabled-bg { background-color: var(--color-disabled-bg); }
+  .bg-theme-input-bg { background-color: var(--color-input-bg); }
+  .bg-cabin-dark { background-color: var(--color-base); }
+  .bg-cabin-panel { background-color: var(--color-panel-solid); }
+  .bg-cabin-dim { background-color: var(--color-dim); }
+
+  /* Theme-aware text utilities */
+  .text-theme-primary { color: var(--color-text-primary); }
+  .text-theme-secondary { color: var(--color-text-secondary); }
+  .text-theme-muted { color: var(--color-text-muted); }
+  .text-theme-accent { color: var(--color-accent); }
+  .text-theme-gold { color: var(--color-gold); }
+  .text-theme-disabled-text { color: var(--color-disabled-text); }
+  .text-cabin-accent { color: var(--color-accent); }
+  .text-cabin-gold { color: var(--color-gold); }
+
+  /* Theme-aware border utilities */
+  .border-theme-border { border-color: var(--color-border); }
+  .border-theme-border-solid { border-color: var(--color-border-solid); }
+  .border-theme-accent { border-color: var(--color-accent); }
+  .border-theme-accent-border { border-color: var(--color-accent-border); }
+  .border-theme-gold { border-color: var(--color-gold); }
+  .border-theme-gold-border { border-color: var(--color-gold-border); }
+  .border-theme-input-border { border-color: var(--color-input-border); }
+  .border-cabin-border { border-color: var(--color-border-solid); }
+
+  /* Theme-aware placeholder */
+  .placeholder-theme-muted::placeholder { color: var(--color-text-muted); }
+
+  /* Theme-aware accent-color for inputs */
+  .accent-theme-accent { accent-color: var(--color-accent); }
+
+  /* Hover variants */
+  .hover\:bg-theme-hover:hover { background-color: var(--color-hover); }
+  .hover\:bg-theme-accent-soft:hover { background-color: var(--color-accent-soft); }
+  .hover\:bg-theme-gold-soft:hover { background-color: var(--color-gold-soft); }
+  .hover\:bg-theme-disabled-bg:hover { background-color: var(--color-disabled-bg); }
+  .hover\:text-theme-primary:hover { color: var(--color-text-primary); }
+  .hover\:text-theme-accent:hover { color: var(--color-accent); }
+  .hover\:border-theme-accent-border:hover { border-color: var(--color-accent-border); }
+  .hover\:border-theme-border-solid:hover { border-color: var(--color-border-solid); }
+
+  /* Focus variants */
+  .focus\:border-theme-accent:focus { border-color: var(--color-accent); }
+
+  /* Disabled variants */
+  .disabled\:text-theme-disabled-text:disabled { color: var(--color-disabled-text); }
+  .disabled\:from-theme-disabled-bg:disabled { --tw-gradient-from: var(--color-disabled-bg); }
+  .disabled\:to-theme-disabled-bg:disabled { --tw-gradient-to: var(--color-disabled-bg); }
+}
+
+@layer components {
+  .glass-panel {
+    background-color: var(--color-panel);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+    box-shadow: 0 2px 16px rgba(14,165,233,0.06);
+  }
+
+  .glass-panel-solid {
+    background-color: var(--color-panel-solid);
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+    box-shadow: 0 2px 16px rgba(14,165,233,0.06);
+  }
+
+  .glow-blue {
+    box-shadow: 0 0 20px rgba(14, 165, 233, 0.15), 0 0 60px rgba(14, 165, 233, 0.05);
+  }
+
+  .glow-gold {
+    box-shadow: 0 0 20px rgba(251, 146, 60, 0.15), 0 0 60px rgba(251, 146, 60, 0.05);
+  }
+
+  .text-gradient {
+    @apply bg-gradient-to-r from-sky-500 to-cyan-400 bg-clip-text text-transparent;
+  }
+
+  .text-gradient-blue {
+    @apply bg-gradient-to-r from-sky-500 via-sky-400 to-cyan-400 bg-clip-text text-transparent;
+  }
+
+  .flight-info-value {
+    @apply font-mono text-sm;
+    color: var(--color-text-primary);
+  }
+
+  .flight-info-label {
+    @apply text-[10px] uppercase tracking-wider;
+    color: var(--color-text-muted);
+  }
+
+  .card-hover {
+    @apply transition-all duration-200 hover:shadow-soft;
+  }
+
+  .card-hover:hover {
+    border-color: var(--color-border-solid);
+  }
+
+  .divider {
+    @apply h-px bg-gradient-to-r from-transparent to-transparent;
+  }
+
+  .divider {
+    background: linear-gradient(to right, transparent, var(--color-border), transparent);
+  }
+
+  .btn-primary {
+    @apply bg-gradient-to-r from-sky-400 to-sky-500 hover:shadow-glow text-white font-medium rounded-xl transition-all duration-200 active:scale-[0.98];
+  }
+
+  .btn-secondary {
+    @apply font-medium rounded-xl transition-all duration-200;
+    background-color: var(--color-dim);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+  }
+
+  .btn-secondary:hover {
+    background-color: var(--color-hover);
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Safe-area insets for notched devices */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pl-safe {
+    padding-left: env(safe-area-inset-left);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* Prevent iOS auto-zoom on input focus (font-size must be >= 16px) */
+@media (max-width: 640px) {
+  input[type="text"],
+  input[type="search"],
+  input[type="number"],
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Ensure Leaflet map containers always have a concrete height */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  background: var(--map-bg);
+}
+
+/* EQ vertical slider styling */
+.eq-vertical-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.eq-vertical-slider::-webkit-slider-runnable-track {
+  width: 3px;
+  background: var(--eq-track);
+  border-radius: 2px;
+}
+
+.eq-vertical-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--color-accent);
+  border: 1px solid var(--eq-thumb-border);
+  box-shadow: 0 0 6px rgba(14, 165, 233, 0.3);
+  cursor: pointer;
+}
+
+.eq-vertical-slider::-moz-range-track {
+  width: 3px;
+  background: var(--eq-track);
+  border-radius: 2px;
+}
+
+.eq-vertical-slider::-moz-range-thumb {
+  width: 14px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--color-accent);
+  border: 1px solid var(--eq-thumb-border);
+  box-shadow: 0 0 6px rgba(14, 165, 233, 0.3);
+  cursor: pointer;
+}
