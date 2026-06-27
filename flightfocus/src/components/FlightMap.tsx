@@ -193,7 +193,7 @@ export function FlightMap() {
         onClick={() => setFollow((f) => !f)}
         className={`absolute top-3 right-3 z-[1000] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-all duration-200 ${
           follow
-            ? 'bg-theme-accent-soft text-theme-accent border border-theme-accent-border shadow-glow'
+            ? 'bg-theme-accent-soft text-theme-accent border border-theme-accent-border'
             : 'bg-theme-panel backdrop-blur-sm text-theme-secondary border border-theme-border hover:text-theme-primary'
         }`}
       >

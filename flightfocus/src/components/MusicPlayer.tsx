@@ -161,7 +161,7 @@ export function MusicPlayer() {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="lg:flex-1 lg:min-h-0 max-h-[70vh] lg:max-h-none flex flex-col bg-theme-panel backdrop-blur-xl border border-theme-border rounded-xl p-4 shadow-panel"
+      className="lg:flex-1 lg:min-h-0 max-h-[70vh] lg:max-h-none flex flex-col surface rounded-xl p-5"
     >
       <audio
         ref={audioRef}
@@ -177,7 +177,7 @@ export function MusicPlayer() {
       <div className="flex items-center justify-between mb-3 shrink-0">
         <div className="flex items-center gap-2">
           <Music2 className="w-4 h-4 text-theme-accent" />
-          <span className="text-sm font-medium text-theme-primary">Focus Music</span>
+          <span className="text-sm font-serif font-medium text-theme-primary">Focus Music</span>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {isSpotifyConfigured() && (
@@ -220,7 +220,7 @@ export function MusicPlayer() {
               onClick={() => loadGenre(g.id)}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all duration-200 border ${
                 active
-                  ? 'bg-theme-accent-soft text-theme-accent border-theme-accent-border shadow-glow'
+                  ? 'bg-theme-accent-soft text-theme-accent border-theme-accent-border'
                   : 'bg-theme-dim text-theme-secondary border-transparent hover:text-theme-primary'
               }`}
             >
@@ -264,7 +264,7 @@ export function MusicPlayer() {
                 key={spotifyActive ? spotifyTrack!.id : current?.id}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="w-20 h-20 rounded-2xl border border-theme-border flex items-center justify-center mb-4 overflow-hidden shadow-glow"
+                className="w-20 h-20 rounded-2xl border border-theme-border flex items-center justify-center mb-4 overflow-hidden"
               >
                 {spotifyActive ? (
                   spotifyTrack!.albumArt ? (
@@ -273,7 +273,7 @@ export function MusicPlayer() {
                     <SpotifyIcon className="w-8 h-8 text-green-500/70" />
                   )
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-sky-100 to-slate-100 flex items-center justify-center">
+                  <div className="w-full h-full bg-theme-dim flex items-center justify-center">
                     <Music2 className="w-8 h-8 text-theme-accent/70" />
                   </div>
                 )}
@@ -302,7 +302,7 @@ export function MusicPlayer() {
               </button>
               <button
                 onClick={toggle}
-                className="w-12 h-12 rounded-full flex items-center justify-center bg-theme-accent-soft text-theme-accent hover:bg-theme-accent-soft transition-all duration-200 shadow-glow"
+                className="w-12 h-12 rounded-full flex items-center justify-center bg-theme-accent-soft text-theme-accent transition-all duration-200"
               >
                 {buffering ? <Loader2 className="w-5 h-5 animate-spin" /> : isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
               </button>

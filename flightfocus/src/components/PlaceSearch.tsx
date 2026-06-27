@@ -64,13 +64,13 @@ export function PlaceSearch({ label, value, onChange, placeholder = 'Search plac
 
   return (
     <div ref={containerRef} className="relative">
-      <label className="block text-xs font-medium text-theme-secondary uppercase tracking-wider mb-2">
+      <label className="block text-xs font-serif font-medium text-theme-secondary uppercase tracking-wider mb-2">
         {label}
       </label>
 
       {value ? (
         <div
-          className="flex items-center gap-3 p-3 bg-theme-dim border border-theme-border rounded-lg cursor-pointer hover:border-theme-accent-border transition-all duration-200"
+          className="flex items-center gap-3 p-3.5 surface-soft border border-theme-border rounded-lg cursor-pointer hover:border-theme-accent-border transition-all duration-200"
           onClick={() => {
             onChange(null as unknown as Place);
             setTimeout(() => inputRef.current?.focus(), 100);
@@ -98,7 +98,7 @@ export function PlaceSearch({ label, value, onChange, placeholder = 'Search plac
             onKeyDown={handleKeyDown}
             onFocus={() => query.length > 0 && setIsOpen(true)}
             placeholder={placeholder}
-            className="w-full pl-10 pr-4 py-3 bg-theme-dim border border-theme-border rounded-lg text-theme-primary placeholder-theme-muted focus:outline-none focus:border-theme-accent-border focus:ring-1 focus:ring-theme-accent-soft transition-all"
+            className="w-full pl-10 pr-4 py-3 bg-theme-input-bg border border-theme-input-border rounded-lg text-theme-primary placeholder-theme-muted focus:outline-none focus:border-theme-accent-border focus:ring-1 focus:ring-theme-accent-soft transition-all"
           />
         </div>
       )}
@@ -110,7 +110,7 @@ export function PlaceSearch({ label, value, onChange, placeholder = 'Search plac
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.15 }}
-            className="absolute z-50 w-full mt-2 bg-theme-panel-solid border border-theme-border rounded-lg shadow-panel overflow-hidden"
+            className="absolute z-50 w-full mt-2 bg-theme-panel-solid border border-theme-border rounded-lg shadow-soft overflow-hidden"
           >
             {results.map((result, index) => (
               <button
