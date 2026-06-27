@@ -1,4 +1,4 @@
-import type { Place, TransportMode } from './place';
+import type { Place, JourneyType } from './place';
 
 export interface VisitedPlace {
   id: string;
@@ -11,7 +11,7 @@ export interface VisitedPlace {
   crossedDateline?: boolean;  // the leg crossed the international date line
   departedLocalHour?: number; // local hour (0-23) at the departure place when the leg began
   cruiseMinutes?: number;     // real minutes spent at CRUISE phase during the leg
-  transportMode: TransportMode; // how you got here
+  journeyType: JourneyType; // how you got here
 }
 
 export interface JournalEntry {

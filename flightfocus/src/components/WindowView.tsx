@@ -4,18 +4,24 @@ import { useFlightStore } from '@/store/flightStore';
 import { useThemeStore } from '@/store/themeStore';
 import { getSolarPosition, formatTimeInTimezone } from '@/utils/time';
 import { MapboxView } from './window/MapboxView';
+import { DriveWindowView } from './DriveWindowView';
 import { getBiome } from '@/utils/biome';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 
 export function WindowView() {
-  const { position, phase, simulationDate, departure, arrival } = useFlightStore();
+  const { position, phase, simulationDate, departure, arrival, journeyType } = useFlightStore();
   const { mode } = useThemeStore();
 
   const solarData = useMemo(() => {
     if (position.lat === 0 && position.lng === 0) return null;
     return getSolarPosition(position.lat, position.lng, simulationDate);
   }, [position.lat, position.lng, simulationDate]);
+
+  // Route to drive window view for drive mode
+  if (journeyType === 'drive') {
+    return <DriveWindowView />;
+  }
 
   const isDay = solarData?.isDaytime ?? false;
   const depTime = departure ? formatTimeInTimezone(simulationDate, departure.timezone) : '--:--';

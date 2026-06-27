@@ -16,13 +16,14 @@ export default {
       },
       fontFamily: {
         display: ['Inter', 'system-ui', 'sans-serif'],
+        serif: ['Spectral', 'Georgia', 'serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
       boxShadow: {
-        'soft': '0 1px 8px rgba(14,165,233,0.06)',
-        'panel': '0 2px 16px rgba(14,165,233,0.06)',
-        'glow': '0 0 20px rgba(14,165,233,0.12)',
-        'glow-gold': '0 0 20px rgba(251,146,60,0.12)',
+        'soft': '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03)',
+        'panel': '0 2px 8px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03)',
+        'glow': '0 0 16px rgba(2,132,199,0.10)',
+        'glow-gold': '0 0 16px rgba(217,119,6,0.10)',
       },
       animation: {
         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',

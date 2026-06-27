@@ -20,6 +20,18 @@ const planeIcon = L.divIcon({
   iconAnchor: [12, 12],
 });
 
+const carIcon = L.divIcon({
+  html: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="10" fill="rgba(16,185,129,0.2)"/>
+    <path d="M5 17h14v-2l-1.5-5h-11L5 15v2z" fill="white" stroke="white" stroke-width="0.5"/>
+    <circle cx="8" cy="17" r="1.5" fill="#333"/>
+    <circle cx="16" cy="17" r="1.5" fill="#333"/>
+  </svg>`,
+  className: '',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+});
+
 const depIcon = L.divIcon({
   html: `<div style="width:14px;height:14px;background:#3b82f6;border:2px solid #93c5fd;border-radius:50%;box-shadow:0 0 8px rgba(59,130,246,0.6);"></div>`,
   className: '',
@@ -92,11 +104,16 @@ function FollowUpdater({
 }
 
 export function FlightMap() {
-  const { route, position, progress, arrival, simulationDate } = useFlightStore();
+  const { route, position, progress, arrival, simulationDate, journeyType } = useFlightStore();
   const { mode } = useThemeStore();
   const [follow, setFollow] = useState(false);
 
   if (!route) return null;
+
+  const isDrive = journeyType === 'drive';
+  const vehicleIcon = isDrive ? carIcon : planeIcon;
+  const routeColor = isDrive ? '#10b981' : '#3b82f6';
+  const routeTraveledColor = isDrive ? '#10b981' : '#3b82f6';
 
   const centerLat = (route.departure.lat + route.arrival.lat) / 2;
   const centerLng = (route.departure.lng + route.arrival.lng) / 2;
@@ -142,19 +159,19 @@ export function FlightMap() {
 
         <Polyline
           positions={routeLatLngs}
-          pathOptions={{ color: '#3b82f6', weight: 2, opacity: 0.3, dashArray: '8 6' }}
+          pathOptions={{ color: routeColor, weight: 2, opacity: 0.3, dashArray: '8 6' }}
         />
 
         {traveledLatLngs.length > 1 && (
           <Polyline
             positions={traveledLatLngs}
-            pathOptions={{ color: '#3b82f6', weight: 3, opacity: 0.9 }}
+            pathOptions={{ color: routeTraveledColor, weight: 3, opacity: 0.9 }}
           />
         )}
 
         <Marker position={[route.departure.lat, route.departure.lng]} icon={depIcon} />
         <Marker position={[route.arrival.lat, route.arrival.lng]} icon={arrIcon} />
-        <Marker position={[position.lat, position.lng]} icon={planeIcon} />
+        <Marker position={[position.lat, position.lng]} icon={vehicleIcon} />
       </MapContainer>
 
       <div className="absolute top-3 left-3 z-[1000] flex items-center gap-2">

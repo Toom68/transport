@@ -92,17 +92,17 @@ export function FocusTimer() {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="lg:flex-1 lg:min-h-0 max-h-[70vh] lg:max-h-none flex flex-col bg-theme-panel backdrop-blur-xl border border-theme-border rounded-xl p-4 shadow-panel overflow-y-auto"
+      className="lg:flex-1 lg:min-h-0 max-h-[70vh] lg:max-h-none flex flex-col surface rounded-xl p-5 overflow-y-auto"
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-3 shrink-0">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <div className="flex items-center gap-2">
           {isBreak ? (
             <Coffee className="w-4 h-4 text-theme-gold" />
           ) : (
             <Timer className="w-4 h-4 text-theme-accent" />
           )}
-          <span className="text-sm font-medium text-theme-primary">
+          <span className="text-base font-serif font-medium text-theme-primary">
             {isBreak ? 'Break' : 'Focus'}
           </span>
           {sessionCount > 0 && (
@@ -126,61 +126,58 @@ export function FocusTimer() {
       </div>
 
       {/* Big timer display */}
-      <div className="relative mb-4 shrink-0">
+      <div className="relative mb-5 shrink-0">
         <div className="text-center">
           <motion.span
             key={timeDisplay}
-            className="text-5xl font-mono font-bold text-theme-primary tracking-wider"
+            className="text-6xl font-mono font-bold text-theme-primary tracking-wider"
           >
             {timeDisplay}
           </motion.span>
         </div>
-        <div className="mt-3 h-1.5 bg-theme-disabled-bg rounded-full overflow-hidden shadow-inner">
+        <div className="mt-4 h-1.5 bg-theme-disabled-bg rounded-full overflow-hidden">
           <motion.div
-            className={`h-full rounded-full ${isBreak ? 'bg-gradient-to-r from-orange-400 to-amber-300' : 'bg-gradient-to-r from-sky-400 to-cyan-400'}`}
-            style={{ width: `${progress * 100}%` }}
+            className="h-full rounded-full"
+            style={{ width: `${progress * 100}%`, backgroundColor: isBreak ? 'var(--color-gold)' : 'var(--color-accent)' }}
           />
         </div>
       </div>
 
-      {/* Session stats */}
-      <div className="grid grid-cols-3 gap-2 mb-4 shrink-0">
-        <div className="bg-theme-dim border border-theme-border rounded-lg p-2 text-center">
-          <Flame className="w-3 h-3 text-theme-gold mx-auto mb-0.5" />
-          <p className="text-sm font-mono text-theme-primary">{completedSessions}</p>
-          <p className="text-[9px] text-theme-muted">Sessions</p>
-        </div>
-        <div className="bg-theme-dim border border-theme-border rounded-lg p-2 text-center">
-          <Clock className="w-3 h-3 text-theme-accent mx-auto mb-0.5" />
-          <p className="text-sm font-mono text-theme-primary">{totalFocusMin}</p>
-          <p className="text-[9px] text-theme-muted">Minutes</p>
-        </div>
-        <div className="bg-theme-dim border border-theme-border rounded-lg p-2 text-center">
-          <Target className="w-3 h-3 text-cyan-500 mx-auto mb-0.5" />
-          <p className="text-sm font-mono text-theme-primary">{tasks.filter((t) => t.done).length}/{tasks.length}</p>
-          <p className="text-[9px] text-theme-muted">Tasks</p>
-        </div>
+      {/* Session stats — inline */}
+      <div className="flex items-center gap-4 mb-5 shrink-0 text-xs text-theme-muted">
+        <span className="flex items-center gap-1.5">
+          <Flame className="w-3.5 h-3.5 text-theme-gold" />
+          <span className="font-mono text-theme-primary">{completedSessions}</span> sessions
+        </span>
+        <span className="flex items-center gap-1.5 border-l border-theme-border pl-4">
+          <Clock className="w-3.5 h-3.5 text-theme-accent" />
+          <span className="font-mono text-theme-primary">{totalFocusMin}</span> min
+        </span>
+        <span className="flex items-center gap-1.5 border-l border-theme-border pl-4">
+          <Target className="w-3.5 h-3.5 text-theme-accent" />
+          <span className="font-mono text-theme-primary">{tasks.filter((t) => t.done).length}/{tasks.length}</span> tasks
+        </span>
       </div>
 
       {/* Timer controls */}
       <div className="shrink-0 mb-4">
         {!isActive ? (
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="flex gap-2">
             {PRESETS.map((p) => (
               <button
                 key={p.mins}
                 onClick={() => p.mins === 25 ? startPomodoro() : startCustomTimer(p.mins)}
-                className="py-2 px-1 bg-theme-accent-medium hover:bg-theme-hover text-theme-accent text-[10px] font-medium rounded-lg transition-all duration-200 hover:shadow-glow flex flex-col items-center gap-0.5"
+                className="flex-1 py-2 px-2 bg-theme-dim hover:bg-theme-hover text-theme-secondary text-xs font-medium rounded-full transition-all duration-200 flex flex-col items-center gap-0.5"
               >
-                <span className="font-mono font-bold text-xs">{p.mins}</span>
-                <span className="text-[9px] opacity-70">{p.label}</span>
+                <span className="font-mono font-bold text-sm text-theme-primary">{p.mins}</span>
+                <span className="text-xs opacity-70">{p.label}</span>
               </button>
             ))}
           </div>
         ) : (
           <button
             onClick={stopTimer}
-            className="w-full py-2.5 bg-red-500/15 hover:bg-red-500/25 text-red-500 text-xs font-medium rounded-lg transition-all duration-200 flex items-center justify-center gap-1.5"
+            className="w-full py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-medium rounded-lg transition-all duration-200 flex items-center justify-center gap-1.5"
           >
             <Square className="w-3 h-3" />
             End Session
@@ -213,7 +210,7 @@ export function FocusTimer() {
                     scale: breathPhase === 0 ? [1, 1.4] : breathPhase === 2 ? [1.4, 1] : 1.4,
                     transition: { duration: BREATHING_PHASES[breathPhase].duration, ease: 'easeInOut' },
                   }}
-                  className="w-16 h-16 rounded-full bg-theme-accent-soft border-2 border-theme-accent-border flex items-center justify-center shadow-glow"
+                  className="w-16 h-16 rounded-full bg-theme-accent-soft border-2 border-theme-accent-border flex items-center justify-center"
                 >
                   <span className={`text-xs font-medium ${BREATHING_PHASES[breathPhase].color}`}>
                     {BREATHING_PHASES[breathPhase].label}
@@ -238,22 +235,22 @@ export function FocusTimer() {
             onChange={(e) => setTaskInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addTask()}
             placeholder="Add a focus task…"
-            className="flex-1 px-2.5 py-1.5 bg-theme-dim border border-theme-border rounded-lg text-xs text-theme-primary placeholder-theme-muted focus:outline-none focus:border-theme-accent-border transition-all"
+            className="flex-1 px-3 py-2 bg-theme-input-bg border border-theme-input-border rounded-lg text-xs text-theme-primary placeholder-theme-muted focus:outline-none focus:border-theme-accent-border transition-all"
           />
           <button
             onClick={addTask}
-            className="w-7 h-7 rounded-lg bg-theme-accent-soft hover:bg-theme-accent-soft text-theme-accent flex items-center justify-center transition-all duration-200 shrink-0"
+            className="w-8 h-8 rounded-lg bg-theme-accent-soft text-theme-accent flex items-center justify-center transition-all duration-200 shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5">
           {tasks.map((task) => (
             <motion.div
               key={task.id}
               initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
-              className="flex items-center gap-2 group p-2 rounded-lg bg-theme-dim border border-theme-border hover:border-theme-border-solid transition-all duration-200"
+              className="flex items-center gap-2 group p-2.5 rounded-lg surface-soft hover:border-theme-border-solid transition-all duration-200"
             >
               <button
                 onClick={() => toggleTask(task.id)}
@@ -275,7 +272,7 @@ export function FocusTimer() {
             </motion.div>
           ))}
           {tasks.length === 0 && (
-            <p className="text-[11px] text-theme-muted text-center py-4">No tasks yet. Add one above.</p>
+            <p className="text-xs text-theme-muted text-center py-4">No tasks yet. Add one above.</p>
           )}
         </div>
       </div>

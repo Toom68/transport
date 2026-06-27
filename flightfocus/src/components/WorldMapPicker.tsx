@@ -4,9 +4,9 @@ import { MapContainer, TileLayer, Polyline, Marker, Tooltip, useMap } from 'reac
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { X, Search, Plane, Car, Anchor, MapPin, Clock, ArrowRight } from 'lucide-react';
-import type { Place, TransportMode } from '@/types/place';
+import type { Place, JourneyType } from '@/types/place';
 import { places } from '@/data/places';
-import { getAvailableModes, getDefaultMode } from '@/data/places';
+import { getAvailableJourneyTypes, getDefaultJourneyType } from '@/data/places';
 import {
   greatCircleDistance, estimateDuration, initialBearing, generateRoutePoints,
 } from '@/engine/navigation';
@@ -16,7 +16,7 @@ import { useThemeStore } from '@/store/themeStore';
 
 interface WorldMapPickerProps {
   from: Place;
-  onSelect: (place: Place, mode: TransportMode) => void;
+  onSelect: (place: Place, journeyType: JourneyType) => void;
   onClose: () => void;
 }
 
@@ -83,16 +83,16 @@ export function WorldMapPicker({ from, onSelect, onClose }: WorldMapPickerProps)
   const distance = selected
     ? greatCircleDistance(from.lat, from.lng, selected.lat, selected.lng)
     : 0;
-  const availableModes = selected ? getAvailableModes(from, selected) : [];
-  const defaultMode = selected ? getDefaultMode(from, selected) : 'fly';
-  const [selectedMode, setSelectedMode] = useState<TransportMode>('fly');
+  const availableJourneyTypes = selected ? getAvailableJourneyTypes(from, selected) : [];
+  const defaultJourneyType = selected ? getDefaultJourneyType(from, selected) : 'fly';
+  const [selectedJourneyType, setSelectedJourneyType] = useState<JourneyType>('fly');
 
-  // When a new place is selected, reset mode to default
+  // When a new place is selected, reset journey type to default
   useEffect(() => {
-    if (selected) setSelectedMode(defaultMode);
-  }, [selected, defaultMode]);
+    if (selected) setSelectedJourneyType(defaultJourneyType);
+  }, [selected, defaultJourneyType]);
 
-  const duration = distance > 0 ? estimateDuration(distance, selectedMode) : 0;
+  const duration = distance > 0 ? estimateDuration(distance, selectedJourneyType) : 0;
   const bearing = selected ? initialBearing(from.lat, from.lng, selected.lat, selected.lng) : 0;
 
   const routeLatLngs: [number, number][] = useMemo(() => {
@@ -121,7 +121,7 @@ export function WorldMapPicker({ from, onSelect, onClose }: WorldMapPickerProps)
         <div className="flex items-center justify-between p-4 border-b border-theme-border">
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-theme-accent" />
-            <span className="text-sm font-medium text-theme-primary">Choose your destination</span>
+            <span className="text-sm font-serif font-medium text-theme-primary">Choose your destination</span>
             <span className="text-xs text-theme-muted">from {from.city} ({from.iata ?? from.id})</span>
           </div>
           <button onClick={onClose} className="text-theme-muted hover:text-theme-primary">
@@ -223,17 +223,17 @@ export function WorldMapPicker({ from, onSelect, onClose }: WorldMapPickerProps)
                   <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatDuration(duration)}</span>
                   <span>Bearing {Math.round(bearing)}°</span>
                 </div>
-                {/* Transport mode selector */}
+                {/* Transport journey type selector */}
                 <div className="flex gap-1.5 mt-2">
-                  {availableModes.map((m) => {
+                  {availableJourneyTypes.map((m) => {
                     const Icon = m === 'fly' ? Plane : m === 'drive' ? Car : Anchor;
                     const label = m === 'fly' ? 'Fly' : m === 'drive' ? 'Drive' : 'Sail';
                     return (
                       <button
                         key={m}
-                        onClick={() => setSelectedMode(m)}
+                        onClick={() => setSelectedJourneyType(m)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1.5 ${
-                          selectedMode === m
+                          selectedJourneyType === m
                             ? 'bg-theme-accent-soft text-theme-accent border border-theme-accent-border'
                             : 'bg-theme-dim text-theme-muted border border-theme-border hover:text-theme-secondary'
                         }`}
@@ -246,11 +246,11 @@ export function WorldMapPicker({ from, onSelect, onClose }: WorldMapPickerProps)
                 </div>
               </div>
               <button
-                onClick={() => onSelect(selected, selectedMode)}
-                className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-sky-400 to-sky-500 hover:shadow-glow text-white font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shrink-0"
+                onClick={() => onSelect(selected, selectedJourneyType)}
+                className="w-full sm:w-auto px-6 py-3 btn-primary rounded-xl flex items-center justify-center gap-2 shrink-0"
               >
-                {selectedMode === 'fly' ? <Plane className="w-4 h-4" /> : selectedMode === 'drive' ? <Car className="w-4 h-4" /> : <Anchor className="w-4 h-4" />}
-                {selectedMode === 'fly' ? 'Fly' : selectedMode === 'drive' ? 'Drive' : 'Sail'} to {selected.iata ?? selected.city}
+                {selectedJourneyType === 'fly' ? <Plane className="w-4 h-4" /> : selectedJourneyType === 'drive' ? <Car className="w-4 h-4" /> : <Anchor className="w-4 h-4" />}
+                {selectedJourneyType === 'fly' ? 'Fly' : selectedJourneyType === 'drive' ? 'Drive' : 'Sail'} to {selected.iata ?? selected.city}
               </button>
             </div>
           ) : (

@@ -4,69 +4,69 @@
 
 /* ── Theme CSS Variables ── */
 :root {
-  --color-base: #e8e0d0;
-  --color-panel: rgba(252, 248, 240, 0.88);
+  --color-base: #f5f0e8;
+  --color-panel: rgba(250, 246, 238, 0.92);
   --color-panel-solid: #faf6ee;
-  --color-dim: #ddd4c0;
-  --color-dim-soft: rgba(221, 212, 192, 0.5);
-  --color-border: rgba(180, 170, 145, 0.4);
-  --color-border-solid: #c4b89e;
+  --color-dim: #ede7da;
+  --color-dim-soft: rgba(237, 231, 218, 0.5);
+  --color-border: rgba(180, 170, 145, 0.25);
+  --color-border-solid: rgba(180, 170, 145, 0.4);
   --color-text-primary: #3d3528;
   --color-text-secondary: #6b6150;
   --color-text-muted: #968b76;
   --color-accent: #0284c7;
-  --color-accent-soft: rgba(2, 132, 199, 0.18);
-  --color-accent-medium: rgba(2, 132, 199, 0.25);
-  --color-accent-border: rgba(2, 132, 199, 0.3);
-  --color-gold: #d97706;
-  --color-gold-soft: rgba(217, 119, 6, 0.18);
-  --color-gold-medium: rgba(217, 119, 6, 0.25);
-  --color-gold-border: rgba(217, 119, 6, 0.3);
-  --color-input-bg: #f5f0e4;
-  --color-input-border: #c4b89e;
-  --color-overlay: rgba(61, 53, 40, 0.4);
-  --color-hover: #ddd4c0;
-  --color-disabled-bg: #c4b89e;
+  --color-accent-soft: rgba(2, 132, 199, 0.12);
+  --color-accent-medium: rgba(2, 132, 199, 0.20);
+  --color-accent-border: rgba(2, 132, 199, 0.25);
+  --color-gold: #c47c1a;
+  --color-gold-soft: rgba(196, 124, 26, 0.12);
+  --color-gold-medium: rgba(196, 124, 26, 0.20);
+  --color-gold-border: rgba(196, 124, 26, 0.25);
+  --color-input-bg: #f0ebe0;
+  --color-input-border: rgba(180, 170, 145, 0.4);
+  --color-overlay: rgba(40, 35, 25, 0.5);
+  --color-hover: #e8e2d4;
+  --color-disabled-bg: #e0d9cc;
   --color-disabled-text: #968b76;
-  --map-bg: #ddd4c0;
+  --map-bg: #ede7da;
   --map-tiles: light;
-  --scrollbar-thumb: #b8ad94;
+  --scrollbar-thumb: #c4b89e;
   --scrollbar-hover: #968b76;
-  --eq-track: rgba(61, 53, 40, 0.1);
+  --eq-track: rgba(61, 53, 40, 0.08);
   --eq-thumb-border: rgba(125, 211, 252, 0.5);
 }
 
 .dark {
-  --color-base: #0a0f1a;
-  --color-panel: rgba(15, 23, 42, 0.82);
-  --color-panel-solid: #0f172a;
-  --color-dim: rgba(30, 41, 59, 0.5);
-  --color-dim-soft: rgba(30, 41, 59, 0.3);
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-solid: rgba(255, 255, 255, 0.12);
-  --color-text-primary: #f1f5f9;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #64748b;
-  --color-accent: #38bdf8;
-  --color-accent-soft: rgba(56, 189, 248, 0.20);
-  --color-accent-medium: rgba(56, 189, 248, 0.25);
-  --color-accent-border: rgba(56, 189, 248, 0.3);
-  --color-gold: #fbbf24;
-  --color-gold-soft: rgba(251, 191, 36, 0.18);
-  --color-gold-medium: rgba(251, 191, 36, 0.25);
-  --color-gold-border: rgba(251, 191, 36, 0.3);
-  --color-input-bg: rgba(15, 23, 42, 0.5);
+  --color-base: #1a1814;
+  --color-panel: rgba(28, 25, 21, 0.88);
+  --color-panel-solid: #24211c;
+  --color-dim: rgba(40, 36, 30, 0.6);
+  --color-dim-soft: rgba(40, 36, 30, 0.35);
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-solid: rgba(255, 255, 255, 0.10);
+  --color-text-primary: #f0ebe0;
+  --color-text-secondary: #a89e8a;
+  --color-text-muted: #6b6353;
+  --color-accent: #5fb5e8;
+  --color-accent-soft: rgba(95, 181, 232, 0.14);
+  --color-accent-medium: rgba(95, 181, 232, 0.22);
+  --color-accent-border: rgba(95, 181, 232, 0.25);
+  --color-gold: #e0a850;
+  --color-gold-soft: rgba(224, 168, 80, 0.14);
+  --color-gold-medium: rgba(224, 168, 80, 0.22);
+  --color-gold-border: rgba(224, 168, 80, 0.25);
+  --color-input-bg: rgba(40, 36, 30, 0.5);
   --color-input-border: rgba(255, 255, 255, 0.08);
-  --color-overlay: rgba(0, 0, 0, 0.8);
-  --color-hover: rgba(30, 41, 59, 0.5);
-  --color-disabled-bg: rgba(30, 41, 59, 0.5);
-  --color-disabled-text: #475569;
-  --map-bg: #070d1a;
+  --color-overlay: rgba(10, 8, 5, 0.75);
+  --color-hover: rgba(40, 36, 30, 0.5);
+  --color-disabled-bg: rgba(40, 36, 30, 0.4);
+  --color-disabled-text: #4a4438;
+  --map-bg: #12100c;
   --map-tiles: dark;
-  --scrollbar-thumb: #334155;
-  --scrollbar-hover: #475569;
-  --eq-track: rgba(255, 255, 255, 0.06);
-  --eq-thumb-border: rgba(56, 189, 248, 0.4);
+  --scrollbar-thumb: #3a352c;
+  --scrollbar-hover: #4a4438;
+  --eq-track: rgba(255, 255, 255, 0.05);
+  --eq-thumb-border: rgba(95, 181, 232, 0.35);
 }
 
 @layer base {
@@ -132,6 +132,7 @@
   .bg-theme-dim-soft { background-color: var(--color-dim-soft); }
   .bg-theme-accent { background-color: var(--color-accent); }
   .bg-theme-accent-soft { background-color: var(--color-accent-soft); }
+  .bg-theme-accent-soft:hover { background-color: var(--color-accent-medium); }
   .bg-theme-accent-medium { background-color: var(--color-accent-medium); }
   .bg-theme-gold { background-color: var(--color-gold); }
   .bg-theme-gold-soft { background-color: var(--color-gold-soft); }
@@ -191,34 +192,46 @@
 
 @layer components {
   .glass-panel {
-    background-color: var(--color-panel);
-    backdrop-filter: blur(16px);
+    background-color: var(--color-panel-solid);
     border: 1px solid var(--color-border);
     border-radius: 1rem;
-    box-shadow: 0 2px 16px rgba(14,165,233,0.06);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03);
   }
 
   .glass-panel-solid {
     background-color: var(--color-panel-solid);
     border: 1px solid var(--color-border);
     border-radius: 1rem;
-    box-shadow: 0 2px 16px rgba(14,165,233,0.06);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03);
+  }
+
+  .surface {
+    background-color: var(--color-panel-solid);
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+
+  .surface-soft {
+    background-color: var(--color-dim);
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
   }
 
   .glow-blue {
-    box-shadow: 0 0 20px rgba(14, 165, 233, 0.15), 0 0 60px rgba(14, 165, 233, 0.05);
+    box-shadow: 0 0 16px rgba(2, 132, 199, 0.10);
   }
 
   .glow-gold {
-    box-shadow: 0 0 20px rgba(251, 146, 60, 0.15), 0 0 60px rgba(251, 146, 60, 0.05);
+    box-shadow: 0 0 16px rgba(196, 124, 26, 0.10);
   }
 
   .text-gradient {
-    @apply bg-gradient-to-r from-sky-500 to-cyan-400 bg-clip-text text-transparent;
+    color: var(--color-accent);
   }
 
   .text-gradient-blue {
-    @apply bg-gradient-to-r from-sky-500 via-sky-400 to-cyan-400 bg-clip-text text-transparent;
+    color: var(--color-accent);
   }
 
   .flight-info-value {
@@ -248,11 +261,17 @@
   }
 
   .btn-primary {
-    @apply bg-gradient-to-r from-sky-400 to-sky-500 hover:shadow-glow text-white font-medium rounded-xl transition-all duration-200 active:scale-[0.98];
+    background-color: var(--color-accent);
+    color: #fff;
+    @apply font-medium rounded-lg transition-all duration-200 active:scale-[0.98];
+  }
+
+  .btn-primary:hover {
+    box-shadow: 0 0 16px rgba(2, 132, 199, 0.15);
   }
 
   .btn-secondary {
-    @apply font-medium rounded-xl transition-all duration-200;
+    @apply font-medium rounded-lg transition-all duration-200;
     background-color: var(--color-dim);
     border: 1px solid var(--color-border);
     color: var(--color-text-secondary);

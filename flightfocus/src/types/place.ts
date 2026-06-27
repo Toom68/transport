@@ -1,6 +1,9 @@
 export type PlaceKind = 'airport' | 'city' | 'port';
 
-export type TransportMode = 'drive' | 'fly' | 'sail';
+export type JourneyType = 'drive' | 'fly' | 'sail';
+
+// Backward compatibility alias
+export type TransportMode = JourneyType;
 
 export interface Place {
   id: string;            // unique identifier (IATA for airports, slug for cities/ports)

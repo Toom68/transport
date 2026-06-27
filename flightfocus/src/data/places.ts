@@ -409,24 +409,24 @@ export function getPlaceByIata(iata: string): Place | undefined {
 }
 
 // Get available transport modes between two places
-export function getAvailableModes(from: Place, to: Place): import('@/types/place').TransportMode[] {
-  const modes: import('@/types/place').TransportMode[] = [];
+export function getAvailableJourneyTypes(from: Place, to: Place): import('@/types/place').JourneyType[] {
+  const journeyTypes: import('@/types/place').JourneyType[] = [];
 
   // You can always drive between any two places on the same landmass
   // (simplified: always allow driving)
-  modes.push('drive');
+  journeyTypes.push('drive');
 
   // You can fly between any two places (airports are preferred but you can fly from any place)
-  modes.push('fly');
+  journeyTypes.push('fly');
 
   // You can sail between any two places (simplified: always allow sailing)
-  modes.push('sail');
+  journeyTypes.push('sail');
 
-  return modes;
+  return journeyTypes;
 }
 
-// Get the default/recommended mode between two places
-export function getDefaultMode(from: Place, to: Place): import('@/types/place').TransportMode {
+// Get the default/recommended journey type between two places
+export function getDefaultJourneyType(from: Place, to: Place): import('@/types/place').JourneyType {
   // If both are airports, fly
   if (from.kind === 'airport' && to.kind === 'airport') return 'fly';
   // If either is a port, sail

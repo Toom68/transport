@@ -4,6 +4,7 @@ import type { NoiseChannelOptions, SampleChannelOptions } from '@/utils/audio';
 
 // Synthesized noise channels (constructed once on init).
 export const CHANNEL_ENGINE_OPTIONS: Record<string, NoiseChannelOptions> = {
+  // Flight channels
   wind: { type: 'pink', lowpass: 6000, highpass: 2000, pan: 0.2, lfoRate: 0.12, lfoDepth: 0.06 },
   cabin: { type: 'pink', lowpass: 1200, pan: 0, reverb: true },
   hvac: { type: 'white', lowpass: 3000, pan: 0.1, lfoRate: 0.05, lfoDepth: 0.05 },
@@ -17,6 +18,11 @@ export const CHANNEL_ENGINE_OPTIONS: Record<string, NoiseChannelOptions> = {
     layers: [{ type: 'brown', lowpass: 70, gain: 0.85 }],
   },
   pressure: { type: 'pink', lowpass: 700, highpass: 200, pan: 0 },
+  // Drive channels
+  roadNoise: { type: 'pink', lowpass: 4000, highpass: 500, pan: 0, lfoRate: 0.08, lfoDepth: 0.04 },
+  tireHum: { type: 'brown', lowpass: 150, pan: 0, lfoRate: 0.3, lfoDepth: 0.15 },
+  windDrive: { type: 'pink', lowpass: 8000, highpass: 3000, pan: 0.1, lfoRate: 0.15, lfoDepth: 0.08 },
+  trafficPass: { type: 'pink', lowpass: 3000, highpass: 800, pan: 0.3, lfoRate: 0.2, lfoDepth: 0.1 },
 };
 
 // Looping sample-backed channels (real recordings). Fall back to noise if a file fails to load.
@@ -24,6 +30,7 @@ export const SAMPLE_LOOP_OPTIONS: Record<string, SampleChannelOptions> = {
   engine: { url: '/audio/engine.mp3', lowpass: 16000, pan: -0.15 },
   boarding: { url: '/audio/boarding.mp3', pan: -0.05 },
   rain: { url: '/audio/rain.mp3', pan: 0 },
+  carEngine: { url: '/audio/car-engine.mp3', lowpass: 8000, pan: -0.1 },
 };
 
 // Synthesized fallbacks used only if the matching sample file can't be loaded.
@@ -37,6 +44,7 @@ export const SAMPLE_FALLBACK_NOISE: Record<string, NoiseChannelOptions> = {
     pan: 0,
     layers: [{ type: 'pink', lowpass: 500, gain: 0.6 }],
   },
+  carEngine: { type: 'brown', lowpass: 200, highpass: 50, pan: -0.1, lfoRate: 0.12, lfoDepth: 0.1 },
 };
 
 // One-shot sample files (played on phase transitions / scheduled events).
@@ -45,6 +53,8 @@ export const ONE_SHOT_SAMPLES = {
   takeoff: '/audio/takeoff.mp3',
   landing: '/audio/landing.mp3',
   thunder: '/audio/thunder.mp3',
+  carDoor: '/audio/car-door.mp3',
+  carHorn: '/audio/car-horn.mp3',
 } as const;
 
 const defaultChannels: AudioChannel[] = [
@@ -57,6 +67,12 @@ const defaultChannels: AudioChannel[] = [
   { id: 'thunder', name: 'Distant Thunder', volume: 0, isMuted: true, isPlaying: false, category: 'weather', phaseGated: 'with rain' },
   { id: 'turbulence', name: 'Turbulence', volume: 0, isMuted: true, isPlaying: false, category: 'environment', hasLfo: true },
   { id: 'pressure', name: 'Cabin Pressure', volume: 0, isMuted: true, isPlaying: false, category: 'environment', phaseGated: 'climb/descent' },
+  // Drive channels
+  { id: 'carEngine', name: 'Car Engine', volume: 0.5, isMuted: false, isPlaying: true, category: 'engine', hasLfo: true, journeyType: 'drive' },
+  { id: 'roadNoise', name: 'Road Noise', volume: 0.35, isMuted: false, isPlaying: true, category: 'engine', hasLfo: true, journeyType: 'drive' },
+  { id: 'tireHum', name: 'Tire Hum', volume: 0.25, isMuted: false, isPlaying: true, category: 'engine', hasLfo: true, journeyType: 'drive' },
+  { id: 'windDrive', name: 'Wind Rush', volume: 0.2, isMuted: true, isPlaying: false, category: 'environment', hasLfo: true, journeyType: 'drive' },
+  { id: 'trafficPass', name: 'Traffic Pass', volume: 0.15, isMuted: true, isPlaying: false, category: 'environment', hasLfo: true, journeyType: 'drive' },
 ];
 
 export interface PresetConfig {
@@ -109,6 +125,25 @@ export const AUDIO_PRESETS: Record<Exclude<AudioPreset, 'auto'>, PresetConfig> =
     label: 'Silent',
     icon: 'VolumeX',
     channels: {},
+  },
+  roadTrip: {
+    label: 'Road Trip',
+    icon: 'Car',
+    channels: {
+      carEngine: { volume: 0.5, muted: false },
+      roadNoise: { volume: 0.35, muted: false },
+      tireHum: { volume: 0.25, muted: false },
+      windDrive: { volume: 0.2, muted: false },
+    },
+  },
+  nightDrive: {
+    label: 'Night Drive',
+    icon: 'Moon',
+    channels: {
+      carEngine: { volume: 0.3, muted: false },
+      roadNoise: { volume: 0.2, muted: false },
+      tireHum: { volume: 0.15, muted: false },
+    },
   },
 };
 

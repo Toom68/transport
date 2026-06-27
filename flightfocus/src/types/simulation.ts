@@ -9,6 +9,7 @@ export interface AudioChannel {
   category: AudioChannelCategory;
   hasLfo?: boolean;          // shows a "~" modulation badge in the UI
   phaseGated?: string;       // human label e.g. "boarding only" / "cruise+"
+  journeyType?: 'fly' | 'drive' | 'sail';  // restricts channel to a specific journey type
 }
 
 export interface FocusSession {
@@ -29,4 +30,4 @@ export interface TimerConfig {
 
 export type ViewMode = 'home' | 'grounded' | 'simulation' | 'fullscreen';
 
-export type AudioPreset = 'auto' | 'focus' | 'night' | 'stormy' | 'takeoff' | 'silent';
+export type AudioPreset = 'auto' | 'focus' | 'night' | 'stormy' | 'takeoff' | 'silent' | 'roadTrip' | 'nightDrive';

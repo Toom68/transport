@@ -18,8 +18,8 @@ export function LogbookView({ save }: LogbookViewProps) {
   const stops = useMemo(() => [...save.visitedPlaces].reverse(), [save.visitedPlaces]);
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-2">
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
         <Stat icon={Plane} label="Flights" value={String(save.stats.totalFlights)} />
         <Stat icon={Car} label="Drives" value={String(save.stats.totalDrives)} />
         <Stat icon={Anchor} label="Sails" value={String(save.stats.totalSails)} />
@@ -49,16 +49,16 @@ export function LogbookView({ save }: LogbookViewProps) {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm font-semibold text-theme-primary">{stop.place.iata ?? stop.place.id}</span>
-                    <span className="text-sm text-theme-secondary truncate">{stop.place.city}</span>
-                    {isCurrent && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-theme-gold-soft text-theme-gold">You are here</span>}
-                    {isOrigin && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-theme-accent-soft text-theme-accent">Start</span>}
+                    <span className="text-sm font-serif text-theme-secondary truncate">{stop.place.city}</span>
+                    {isCurrent && <span className="text-xs px-2 py-0.5 rounded-full bg-theme-gold-soft text-theme-gold">You are here</span>}
+                    {isOrigin && <span className="text-xs px-2 py-0.5 rounded-full bg-theme-accent-soft text-theme-accent">Start</span>}
                   </div>
-                  <p className="text-[10px] text-theme-muted">
+                  <p className="text-xs text-theme-muted">
                     {getPlaceContinent(stop.place)} · {stop.place.country}
                     {stop.distanceKm > 0 && <> · {formatDistance(stop.distanceKm)} from {stop.departedFrom}</>}
                   </p>
                 </div>
-                <span className="text-[10px] text-theme-muted shrink-0">{formatDate(stop.arrivedAt)}</span>
+                <span className="text-xs text-theme-muted shrink-0">{formatDate(stop.arrivedAt)}</span>
               </div>
             </motion.div>
           );
@@ -70,10 +70,10 @@ export function LogbookView({ save }: LogbookViewProps) {
 
 function Stat({ icon: Icon, label, value }: { icon: typeof MapPin; label: string; value: string }) {
   return (
-    <div className="bg-theme-dim border border-theme-border rounded-lg p-2.5 text-center shadow-soft">
+    <div className="surface-soft rounded-lg p-3 text-center">
       <Icon className="w-3.5 h-3.5 text-theme-muted mx-auto mb-1" />
       <p className="text-sm font-mono text-theme-primary">{value}</p>
-      <p className="text-[10px] text-theme-muted">{label}</p>
+      <p className="text-xs text-theme-muted">{label}</p>
     </div>
   );
 }

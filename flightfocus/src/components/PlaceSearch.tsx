@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plane, MapPin } from 'lucide-react';
-import type { Place, TransportMode } from '@/types/place';
+import type { Place, JourneyType } from '@/types/place';
 import { searchPlaces } from '@/utils/search';
 
 interface PlaceSearchProps {
@@ -9,10 +9,10 @@ interface PlaceSearchProps {
   value: Place | null;
   onChange: (place: Place) => void;
   placeholder?: string;
-  filterMode?: TransportMode;
+  filterJourneyType?: JourneyType;
 }
 
-export function PlaceSearch({ label, value, onChange, placeholder = 'Search place...', filterMode }: PlaceSearchProps) {
+export function PlaceSearch({ label, value, onChange, placeholder = 'Search place...', filterJourneyType }: PlaceSearchProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ReturnType<typeof searchPlaces>>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -22,7 +22,7 @@ export function PlaceSearch({ label, value, onChange, placeholder = 'Search plac
 
   useEffect(() => {
     if (query.length > 0) {
-      const searchResults = searchPlaces(query, 8, filterMode);
+      const searchResults = searchPlaces(query, 8, filterJourneyType);
       setResults(searchResults);
       setIsOpen(searchResults.length > 0);
       setSelectedIndex(0);
@@ -30,7 +30,7 @@ export function PlaceSearch({ label, value, onChange, placeholder = 'Search plac
       setResults([]);
       setIsOpen(false);
     }
-  }, [query, filterMode]);
+  }, [query, filterJourneyType]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

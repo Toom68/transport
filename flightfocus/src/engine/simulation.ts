@@ -1,4 +1,4 @@
-import type { TransportMode } from '@/types/place';
+import type { JourneyType } from '@/types/place';
 import type { JourneyPhase, PhaseConfig } from '@/types/journey';
 
 // Backward compat alias
@@ -46,8 +46,8 @@ export const GROUND_WORLD_SECONDS_SAIL = 3600; // 60 min
 export const GROUND_WORLD_SECONDS = GROUND_WORLD_SECONDS_FLY; // backward compat
 
 // Helper to get ground total seconds for a mode
-export function getGroundTotalSeconds(mode: TransportMode): number {
-  switch (mode) {
+export function getGroundTotalSeconds(journeyType: JourneyType): number {
+  switch (journeyType) {
     case 'fly': return GROUND_TOTAL_SECONDS_FLY;
     case 'drive': return GROUND_TOTAL_SECONDS_DRIVE;
     case 'sail': return GROUND_TOTAL_SECONDS_SAIL;
@@ -55,8 +55,8 @@ export function getGroundTotalSeconds(mode: TransportMode): number {
   }
 }
 
-export function getGroundWorldSeconds(mode: TransportMode): number {
-  switch (mode) {
+export function getGroundWorldSeconds(journeyType: JourneyType): number {
+  switch (journeyType) {
     case 'fly': return GROUND_WORLD_SECONDS_FLY;
     case 'drive': return GROUND_WORLD_SECONDS_DRIVE;
     case 'sail': return GROUND_WORLD_SECONDS_SAIL;
@@ -94,8 +94,8 @@ export const PHASE_CONFIGS_SAIL: PhaseConfig[] = [
 
 export const PHASE_CONFIGS = PHASE_CONFIGS_FLY; // backward compat
 
-export function getPhaseConfigs(mode: TransportMode): PhaseConfig[] {
-  switch (mode) {
+export function getPhaseConfigs(journeyType: JourneyType): PhaseConfig[] {
+  switch (journeyType) {
     case 'fly': return PHASE_CONFIGS_FLY;
     case 'drive': return PHASE_CONFIGS_DRIVE;
     case 'sail': return PHASE_CONFIGS_SAIL;
@@ -108,8 +108,8 @@ export function getGroundPhase(groundElapsedSeconds: number): JourneyPhase | nul
   return getGroundPhaseForMode(groundElapsedSeconds, 'fly');
 }
 
-export function getGroundPhaseForMode(groundElapsedSeconds: number, mode: TransportMode): JourneyPhase | null {
-  switch (mode) {
+export function getGroundPhaseForMode(groundElapsedSeconds: number, journeyType: JourneyType): JourneyPhase | null {
+  switch (journeyType) {
     case 'fly': {
       if (groundElapsedSeconds < GROUND_DURATIONS_FLY.BOARDING) return 'BOARDING';
       if (groundElapsedSeconds < GROUND_DURATIONS_FLY.BOARDING + GROUND_DURATIONS_FLY.TAXI) return 'TAXI';
@@ -136,8 +136,8 @@ export function getGroundSpeed(groundElapsedSeconds: number): number {
   return getGroundSpeedForMode(groundElapsedSeconds, 'fly');
 }
 
-export function getGroundSpeedForMode(groundElapsedSeconds: number, mode: TransportMode): number {
-  const phase = getGroundPhaseForMode(groundElapsedSeconds, mode);
+export function getGroundSpeedForMode(groundElapsedSeconds: number, journeyType: JourneyType): number {
+  const phase = getGroundPhaseForMode(groundElapsedSeconds, journeyType);
   if (phase === 'BOARDING') return 0;
   if (phase === 'TAXI') return 20;
   if (phase === 'TAKEOFF') {
@@ -147,12 +147,12 @@ export function getGroundSpeedForMode(groundElapsedSeconds: number, mode: Transp
   }
   if (phase === 'DEPARTING') {
     // Could be driving or sailing - check mode for speed
-    if (mode === 'drive') {
+    if (journeyType === 'drive') {
       const start = GROUND_DURATIONS_DRIVE.BOARDING;
       const f = Math.min(1, (groundElapsedSeconds - start) / GROUND_DURATIONS_DRIVE.DEPARTING);
       return f * 30;
     }
-    if (mode === 'sail') {
+    if (journeyType === 'sail') {
       const start = GROUND_DURATIONS_SAIL.BOARDING;
       const f = Math.min(1, (groundElapsedSeconds - start) / GROUND_DURATIONS_SAIL.DEPARTING);
       return f * 10;
@@ -166,8 +166,8 @@ export function getPhaseForProgress(progress: number): JourneyPhase {
   return getPhaseForProgressAndMode(progress, 'fly');
 }
 
-export function getPhaseForProgressAndMode(progress: number, mode: TransportMode): JourneyPhase {
-  const configs = getPhaseConfigs(mode);
+export function getPhaseForProgressAndMode(progress: number, journeyType: JourneyType): JourneyPhase {
+  const configs = getPhaseConfigs(journeyType);
   if (progress >= 1) return 'ARRIVED';
   for (let i = configs.length - 1; i >= 0; i--) {
     if (progress >= configs[i].progressStart) {
@@ -181,8 +181,8 @@ export function getPhaseConfig(phase: JourneyPhase): PhaseConfig {
   return PHASE_CONFIGS.find(c => c.phase === phase) || PHASE_CONFIGS[0];
 }
 
-export function getPhaseConfigForMode(phase: JourneyPhase, mode: TransportMode): PhaseConfig {
-  const configs = getPhaseConfigs(mode);
+export function getPhaseConfigForMode(phase: JourneyPhase, journeyType: JourneyType): PhaseConfig {
+  const configs = getPhaseConfigs(journeyType);
   return configs.find(c => c.phase === phase) || configs[0];
 }
 

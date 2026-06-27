@@ -1,4 +1,4 @@
-import type { Place, PlaceSearchResult, TransportMode } from '@/types/place';
+import type { Place, PlaceSearchResult, JourneyType } from '@/types/place';
 import { places, getPlaceByIata } from '@/data/places';
 import { airports } from '@/data/airports';
 import type { Airport, AirportSearchResult } from '@/types/airport';
@@ -35,17 +35,17 @@ function fuzzyScore(query: string, target: string): number {
   return (score / (t.length + q.length)) * 0.6;
 }
 
-export function searchPlaces(query: string, limit: number = 10, filterMode?: TransportMode): PlaceSearchResult[] {
+export function searchPlaces(query: string, limit: number = 10, filterJourneyType?: JourneyType): PlaceSearchResult[] {
   if (!query || query.trim().length === 0) return [];
 
   const q = query.trim();
   const results: PlaceSearchResult[] = [];
 
   for (const place of places) {
-    // Skip if filterMode is set and place kind doesn't match
-    if (filterMode === 'fly' && place.kind !== 'airport') continue;
-    if (filterMode === 'sail' && place.kind !== 'port') continue;
-    if (filterMode === 'drive' && place.kind === 'port') continue; // can't drive to a port (usually)
+    // Skip if filterJourneyType is set and place kind doesn't match
+    if (filterJourneyType === 'fly' && place.kind !== 'airport') continue;
+    if (filterJourneyType === 'sail' && place.kind !== 'port') continue;
+    if (filterJourneyType === 'drive' && place.kind === 'port') continue; // can't drive to a port (usually)
 
     let bestScore = 0;
     let bestField: PlaceSearchResult['matchField'] = 'name';

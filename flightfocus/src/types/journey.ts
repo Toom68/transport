@@ -1,5 +1,5 @@
 import type { Place } from './place';
-import type { TransportMode } from './place';
+import type { JourneyType } from './place';
 
 export interface RoutePoint {
   lat: number;
@@ -10,7 +10,7 @@ export interface RoutePoint {
 }
 
 export interface JourneyRoute {
-  mode: TransportMode;
+  journeyType: JourneyType;
   departure: Place;
   arrival: Place;
   distance: number;
@@ -62,7 +62,7 @@ export interface PhaseConfig {
 }
 
 export interface JourneyState {
-  mode: TransportMode;
+  journeyType: JourneyType;
   phase: JourneyPhase;
   position: JourneyPosition;
   elapsedTime: number;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Volume2, VolumeX, ChevronDown, Sparkles, Headphones, Moon, CloudRain, PlaneTakeoff, Wand2,
+  Volume2, VolumeX, ChevronDown, Sparkles, Headphones, Moon, CloudRain, PlaneTakeoff, Wand2, Car,
 } from 'lucide-react';
 import {
   useAudioStore, CHANNEL_ENGINE_OPTIONS, AUDIO_PRESETS,
@@ -24,9 +24,9 @@ const PHASE_AUTO: Record<JourneyPhase, AutoMap> = {
   DESCENT: { boarding: 0, engine: 0.4, hvac: 0.35, cabin: 0.25, wind: 0.3, pressure: 0.4 },
   APPROACH: { boarding: 0, engine: 0.45, hvac: 0.3, cabin: 0.2, wind: 0.15, pressure: 0.2 },
   LANDING: { boarding: 0, engine: 0.55, hvac: 0.25, cabin: 0.15, wind: 0.1, pressure: 0 },
-  DEPARTING: { boarding: 0.3, engine: 0.2, hvac: 0.2, cabin: 0.15, wind: 0.1, pressure: 0 },
-  DRIVING: { boarding: 0, engine: 0.5, hvac: 0.3, cabin: 0.2, wind: 0.3, pressure: 0 },
-  ARRIVING: { boarding: 0, engine: 0.35, hvac: 0.25, cabin: 0.2, wind: 0.15, pressure: 0 },
+  DEPARTING: { boarding: 0.3, engine: 0.2, hvac: 0.2, cabin: 0.15, wind: 0.1, pressure: 0, carEngine: 0.4, roadNoise: 0.2, tireHum: 0.15, windDrive: 0.1 },
+  DRIVING: { boarding: 0, engine: 0.5, hvac: 0.3, cabin: 0.2, wind: 0.3, pressure: 0, carEngine: 0.55, roadNoise: 0.4, tireHum: 0.3, windDrive: 0.25, trafficPass: 0.15 },
+  ARRIVING: { boarding: 0, engine: 0.35, hvac: 0.25, cabin: 0.2, wind: 0.15, pressure: 0, carEngine: 0.3, roadNoise: 0.2, tireHum: 0.15, windDrive: 0.1 },
   SAILING: { boarding: 0, engine: 0.3, hvac: 0.25, cabin: 0.2, wind: 0.4, pressure: 0 },
   DOCKING: { boarding: 0.1, engine: 0.2, hvac: 0.2, cabin: 0.15, wind: 0.2, pressure: 0 },
   ARRIVED: { boarding: 0.4, engine: 0.08, hvac: 0.15, cabin: 0.2, wind: 0, pressure: 0 },
@@ -45,6 +45,8 @@ const PRESET_ICONS: Record<AudioPreset, typeof Sparkles> = {
   stormy: CloudRain,
   takeoff: PlaneTakeoff,
   silent: VolumeX,
+  roadTrip: Car,
+  nightDrive: Moon,
 };
 
 const GROUPS: { label: string; category: AudioChannel['category'] }[] = [
@@ -59,9 +61,15 @@ export function AudioMixer() {
     channels, masterVolume, isInitialized, activePreset,
     setMasterVolume, setChannelVolume, toggleChannelMute, setInitialized, setPreset,
   } = useAudioStore();
-  const { phase, isActive } = useFlightStore();
+  const { phase, isActive, journeyType } = useFlightStore();
   const { mode } = useThemeStore();
   const [collapsed, setCollapsed] = useState(false);
+
+  // Filter channels by journey type — show only relevant channels for the active journey
+  const visibleChannels = channels.filter((ch) => {
+    if (!ch.journeyType) return true; // shared channels (rain, thunder, etc.)
+    return ch.journeyType === journeyType;
+  });
 
   // Initialize the engine + all channels once.
   useEffect(() => {
@@ -116,8 +124,14 @@ export function AudioMixer() {
     } else if (phase === 'LANDING') {
       // Actual landing.
       void audioEngine.playOneShot(ONE_SHOT_SAMPLES.landing, { gain: vol });
+    } else if (phase === 'DEPARTING' && journeyType === 'drive') {
+      // Car door slam at start of drive.
+      void audioEngine.playOneShot(ONE_SHOT_SAMPLES.carDoor, { gain: vol });
+    } else if (phase === 'ARRIVING' && journeyType === 'drive') {
+      // Car door slam at end of drive.
+      void audioEngine.playOneShot(ONE_SHOT_SAMPLES.carDoor, { gain: vol * 0.8 });
     }
-  }, [phase, isActive, isInitialized, masterVolume]);
+  }, [phase, isActive, isInitialized, masterVolume, journeyType]);
 
   // Distant-thunder one-shots, scheduled randomly while the Thunder channel is audible.
   useEffect(() => {
@@ -159,9 +173,12 @@ export function AudioMixer() {
       setChannelVolume(id, vol);
     }
     const ef = ENGINE_FILTER_BY_PHASE[effectivePhase];
-    if (ef) audioEngine.setChannelFilter('engine', ef);
+    if (ef) {
+      const engineChannelId = journeyType === 'drive' ? 'carEngine' : 'engine';
+      audioEngine.setChannelFilter(engineChannelId, ef);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectivePhase, activePreset, isInitialized]);
+  }, [effectivePhase, activePreset, isInitialized, journeyType]);
 
   const handleInteraction = () => { audioEngine.resume(); };
 
@@ -176,19 +193,22 @@ export function AudioMixer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialized]);
 
-  const presetList: AudioPreset[] = ['auto', 'focus', 'night', 'stormy', 'takeoff', 'silent'];
+  // Journey-type-aware preset list
+  const presetList: AudioPreset[] = journeyType === 'drive'
+    ? ['auto', 'roadTrip', 'nightDrive', 'stormy', 'silent']
+    : ['auto', 'focus', 'night', 'stormy', 'takeoff', 'silent'];
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       onClick={handleInteraction}
-      className="lg:flex-1 lg:min-h-0 max-h-[70vh] lg:max-h-none flex flex-col bg-theme-panel backdrop-blur-xl border border-theme-border rounded-xl p-4 shadow-panel overflow-y-auto"
+      className="lg:flex-1 lg:min-h-0 max-h-[70vh] lg:max-h-none flex flex-col surface rounded-xl p-5 overflow-y-auto"
     >
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-4">
         <button onClick={() => setCollapsed((c) => !c)} className="flex items-center gap-2 group">
           <Wand2 className="w-4 h-4 text-theme-accent" />
-          <span className="text-sm font-medium text-theme-primary">Soundscape</span>
+          <span className="text-sm font-serif font-medium text-theme-primary">Soundscape</span>
           <ChevronDown
             className={`w-3.5 h-3.5 text-theme-muted transition-transform ${collapsed ? '-rotate-90' : ''}`}
           />
@@ -237,13 +257,13 @@ export function AudioMixer() {
             {activePreset === 'auto' && (
               <p className="text-[10px] text-theme-muted mb-2 flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-theme-accent" />
-                Auto mode follows your flight phase. Pick a preset to take manual control.
+                Auto mode follows your {journeyType === 'drive' ? 'drive' : 'flight'} phase. Pick a preset to take manual control.
               </p>
             )}
 
             <div className="space-y-3">
               {GROUPS.map((group) => {
-                const groupChannels = channels.filter((c) => c.category === group.category);
+                const groupChannels = visibleChannels.filter((c) => c.category === group.category);
                 if (groupChannels.length === 0) return null;
                 return (
                   <div key={group.category}>
@@ -283,9 +303,7 @@ function ChannelRow({ channel, masterVolume, onToggleMute, onVolume, mode }: Cha
   const level = channel.isMuted ? 0 : channel.volume * masterVolume;
   const active = level > 0.01;
 
-  const meterGradient = mode === 'dark'
-    ? 'bg-gradient-to-r from-sky-400/60 to-orange-400/60'
-    : 'bg-gradient-to-r from-amber-700/50 to-red-500/70';
+  const meterColor = 'var(--color-accent)';
 
   return (
     <div className="flex items-center gap-2">
@@ -313,7 +331,8 @@ function ChannelRow({ channel, masterVolume, onToggleMute, onVolume, mode }: Cha
         {/* level meter behind the slider */}
         <div className="absolute inset-x-0 h-1 bg-theme-disabled-bg rounded-full overflow-hidden">
           <motion.div
-            className={`h-full ${meterGradient}`}
+            className="h-full"
+            style={{ backgroundColor: meterColor }}
             animate={{ width: `${Math.min(100, level * 100)}%`, opacity: active ? [0.55, 0.9, 0.55] : 0.3 }}
             transition={{ width: { duration: 0.4 }, opacity: { duration: 2.4, repeat: active ? Infinity : 0 } }}
           />

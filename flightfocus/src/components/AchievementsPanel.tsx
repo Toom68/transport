@@ -36,14 +36,14 @@ export function AchievementsPanel({ unlocked }: AchievementsPanelProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Trophy className="w-4 h-4 text-theme-gold" />
-          <span className="text-sm font-medium text-theme-primary">Achievements</span>
+          <span className="text-sm font-serif font-medium text-theme-primary">Achievements</span>
         </div>
         <span className="text-xs font-mono text-theme-muted">{unlockedSet.size}/{total}</span>
       </div>
 
       {(Object.keys(grouped) as AchievementCategory[]).map((cat) => (
         <div key={cat}>
-          <p className="text-[10px] uppercase tracking-wider text-theme-muted mb-2">{CATEGORY_LABEL[cat]}</p>
+          <p className="text-xs uppercase tracking-wider text-theme-muted mb-2">{CATEGORY_LABEL[cat]}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {grouped[cat].map((a) => {
               const isUnlocked = unlockedSet.has(a.id);
@@ -53,10 +53,10 @@ export function AchievementsPanel({ unlocked }: AchievementsPanelProps) {
                 <motion.div
                   key={a.id}
                   initial={false}
-                  className={`flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
                     isUnlocked
                       ? 'bg-theme-gold-soft border-theme-gold-border'
-                      : 'bg-theme-dim border-theme-border'
+                      : 'surface-soft border-theme-border'
                   }`}
                 >
                   <div
@@ -70,7 +70,7 @@ export function AchievementsPanel({ unlocked }: AchievementsPanelProps) {
                     <p className={`text-xs font-medium truncate ${isUnlocked ? 'text-theme-primary' : 'text-theme-muted'}`}>
                       {isSecret ? 'Hidden achievement' : a.name}
                     </p>
-                    <p className="text-[10px] text-theme-muted truncate">
+                    <p className="text-xs text-theme-muted truncate">
                       {isSecret ? 'Keep travelling to discover this.' : a.description}
                     </p>
                   </div>

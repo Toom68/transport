@@ -72,42 +72,42 @@ export function HomeScreen() {
         transition={{ duration: 0.6 }}
         className="w-full max-w-2xl"
       >
-        <div className="text-center mb-10">
+        <div className="text-center mb-12">
           <motion.div
             initial={{ scale: 0.8 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: 'spring' }}
-            className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-theme-accent-soft border border-theme-accent-border mb-4 shadow-glow"
+            className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-theme-accent-soft border border-theme-accent-border mb-5 shadow-soft"
           >
             <Plane className="w-8 h-8 text-theme-accent" />
           </motion.div>
-          <h1 className="text-3xl font-display font-bold text-theme-primary mb-2">transportfocus</h1>
-          <p className="text-theme-secondary text-sm">A quiet journey across the world. Pick up where you arrived.</p>
+          <h1 className="text-3xl font-serif font-semibold text-theme-primary mb-2">transportfocus</h1>
+          <p className="text-theme-secondary text-sm font-serif italic">A quiet journey across the world. Pick up where you arrived.</p>
         </div>
 
-        <div className="bg-theme-panel backdrop-blur-xl border border-theme-border rounded-2xl p-6 space-y-4 shadow-panel">
+        <div className="surface rounded-2xl p-6 space-y-5">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-medium text-theme-primary">Your journeys</h2>
             <span className="text-xs text-theme-muted font-mono">{saves.length}/{MAX_SAVES}</span>
           </div>
 
           {sortedSaves.length === 0 && (
-            <div className="text-center py-10 text-theme-secondary text-sm">
+            <div className="text-center py-12 text-theme-secondary text-sm">
               No journeys yet. Start a new one below.
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {sortedSaves.map((save) => (
               <motion.div
                 key={save.id}
                 layout
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="group flex items-center gap-3 p-3 bg-theme-dim border border-theme-border rounded-xl hover:border-theme-accent-border hover:shadow-soft transition-all duration-200"
+                className="group flex items-center gap-4 p-4 surface-soft hover:border-theme-accent-border transition-all duration-200"
               >
-                <button onClick={() => handleContinue(save)} className="flex-1 flex items-center gap-3 text-left min-w-0">
-                  <div className="w-11 h-11 rounded-lg bg-theme-accent-soft flex items-center justify-center shrink-0 shadow-glow">
+                <button onClick={() => handleContinue(save)} className="flex-1 flex items-center gap-4 text-left min-w-0">
+                  <div className="w-11 h-11 rounded-lg bg-theme-accent-soft flex items-center justify-center shrink-0">
                     <MapPin className="w-5 h-5 text-theme-accent" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -116,22 +116,21 @@ export function HomeScreen() {
                       Currently in {save.currentPlace.city}
                       <span className="font-mono text-theme-muted"> ({save.currentPlace.iata ?? save.currentPlace.id})</span>
                     </p>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[10px] text-theme-muted">
-                      <span className="flex items-center gap-1"><Plane className="w-3 h-3" />{save.stats.totalFlights}</span>
-                      <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{uniquePlaceCount(save)}</span>
-                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatHours(save.stats.totalAmbientMinutes)}</span>
-                      <span className="flex items-center gap-1"><Trophy className="w-3 h-3" />{save.unlockedAchievements.length}</span>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-xs text-theme-muted">
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-theme-dim"><Plane className="w-3 h-3" />{save.stats.totalFlights}</span>
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-theme-dim"><MapPin className="w-3 h-3" />{uniquePlaceCount(save)}</span>
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-theme-dim"><Clock className="w-3 h-3" />{formatHours(save.stats.totalAmbientMinutes)}</span>
                       {save.stats.miles > 0 && (
-                        <span className="flex items-center gap-1 text-theme-gold/70"><Award className="w-3 h-3" />{save.stats.miles.toLocaleString()}</span>
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-theme-gold-soft text-theme-gold"><Award className="w-3 h-3" />{save.stats.miles.toLocaleString()}</span>
                       )}
-                      <span className="ml-auto">{relativeTime(save.lastPlayedAt)}</span>
+                      <span className="ml-auto text-xs">{relativeTime(save.lastPlayedAt)}</span>
                     </div>
                   </div>
                 </button>
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={() => handleContinue(save)}
-                    className="w-9 h-9 rounded-lg bg-theme-accent-soft text-theme-accent flex items-center justify-center hover:bg-theme-accent-soft transition-colors"
+                    className="w-9 h-9 rounded-lg bg-theme-accent-soft text-theme-accent flex items-center justify-center transition-colors"
                     title="Continue journey"
                   >
                     <ArrowRight className="w-4 h-4" />
@@ -151,18 +150,18 @@ export function HomeScreen() {
           <button
             onClick={() => setShowNew(true)}
             disabled={saves.length >= MAX_SAVES}
-            className="w-full py-3.5 bg-gradient-to-r from-sky-400 to-sky-500 hover:shadow-glow disabled:from-theme-disabled-bg disabled:to-theme-disabled-bg disabled:text-theme-muted disabled:shadow-none text-theme-primary font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
+            className="w-full py-3.5 btn-primary rounded-lg disabled:bg-theme-disabled-bg disabled:text-theme-muted disabled:shadow-none flex items-center justify-center gap-2"
           >
             <Plus className="w-5 h-5" />
             New Journey
           </button>
           {saves.length >= MAX_SAVES && (
-            <p className="text-center text-[11px] text-theme-muted">Delete a journey to start a new one.</p>
+            <p className="text-center text-xs text-theme-muted">Delete a journey to start a new one.</p>
           )}
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 mt-6">
-          <p className="text-center text-xs text-theme-muted">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 mt-8">
+          <p className="text-center text-xs text-theme-muted font-serif italic">
             Where you land is where you take off next.
           </p>
           {isSpotifyConfigured() && (
@@ -212,16 +211,16 @@ function NewJourneyModal({ onClose, onCreate }: NewJourneyModalProps) {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md bg-theme-panel-solid border border-theme-border rounded-2xl p-6 space-y-5 shadow-panel"
+        className="w-full max-w-md surface rounded-2xl p-7 space-y-6"
       >
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-theme-primary">Start a new journey</h3>
+          <h3 className="text-lg font-serif font-semibold text-theme-primary">Start a new journey</h3>
           <button onClick={onClose} className="text-theme-muted hover:text-theme-primary">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <p className="text-sm text-theme-secondary">
+        <p className="text-sm text-theme-secondary font-serif italic">
           Choose where your story begins. You'll pick destinations as you go — each landing becomes your next departure.
         </p>
 
@@ -241,14 +240,14 @@ function NewJourneyModal({ onClose, onCreate }: NewJourneyModalProps) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={defaultName || 'My grand tour'}
-            className="w-full px-4 py-3 bg-theme-dim border border-theme-border rounded-lg text-theme-primary placeholder-theme-muted focus:outline-none focus:border-theme-accent-border transition-all"
+            className="w-full px-4 py-3 bg-theme-input-bg border border-theme-input-border rounded-lg text-theme-primary placeholder-theme-muted focus:outline-none focus:border-theme-accent-border transition-all"
           />
         </div>
 
         <button
           onClick={() => origin && onCreate(name || defaultName, origin)}
           disabled={!origin}
-          className="w-full py-3.5 bg-gradient-to-r from-sky-400 to-sky-500 hover:shadow-glow disabled:from-theme-disabled-bg disabled:to-theme-disabled-bg disabled:text-theme-muted disabled:shadow-none text-theme-primary font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
+          className="w-full py-3.5 btn-primary rounded-lg disabled:bg-theme-disabled-bg disabled:text-theme-muted disabled:shadow-none flex items-center justify-center gap-2"
         >
           <Plane className="w-5 h-5" />
           Begin

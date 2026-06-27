@@ -1,10 +1,10 @@
 import { create } from 'zustand';
 import type { Airport } from '@/types/airport';
-import type { Place, TransportMode } from '@/types/place';
+import type { Place, JourneyType } from '@/types/place';
 import type { JourneyPhase, JourneyRoute, JourneyPosition } from '@/types/journey';
 import type { FlightPhase, FlightRoute, FlightPosition } from '@/types/flight';
 import type { ViewMode } from '@/types/simulation';
-import { generateRoute, generateFlightRoute, getPositionAtProgress } from '@/engine/route';
+import { generateRoute, generateRouteAsync, generateFlightRoute, getPositionAtProgress } from '@/engine/route';
 import {
   getPhaseForProgress,
   getPhaseForProgressAndMode,
@@ -31,7 +31,7 @@ interface PersistedFlight {
   route: JourneyRoute;
   phase: JourneyPhase;
   position: JourneyPosition;
-  transportMode: TransportMode;
+  journeyType: JourneyType;
   progress: number;
   elapsedTime: number;
   isActive: boolean;
@@ -97,7 +97,7 @@ interface FlightStore {
   route: JourneyRoute | null;
   phase: JourneyPhase;
   position: JourneyPosition;
-  transportMode: TransportMode;
+  journeyType: JourneyType;
   progress: number;
   elapsedTime: number;
   isActive: boolean;
@@ -113,11 +113,12 @@ interface FlightStore {
   cruiseRealSeconds: number;    // real wall-clock seconds spent at CRUISE this leg
   departedLocalHour: number | null; // local hour at departure airport when the leg began
   arrivalProcessed: boolean;    // guards once-only arrival recording (StrictMode-safe)
+  isRouteLoading: boolean;      // true while fetching drive route from API
 
   setDeparture: (place: Place | null) => void;
   setArrival: (place: Place | null) => void;
-  setTransportMode: (mode: TransportMode) => void;
-  startFlight: () => void;
+  setJourneyType: (journeyType: JourneyType) => void;
+  startFlight: () => Promise<void>;
   pauseFlight: () => void;
   resumeFlight: () => void;
   stopFlight: () => void;
@@ -138,7 +139,7 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
   route: null,
   phase: 'BOARDING',
   position: { lat: 0, lng: 0, altitude: 0, speed: 0, heading: 0, progress: 0, distanceRemaining: 0, timeRemaining: 0 },
-  transportMode: 'fly',
+  journeyType: 'fly',
   progress: 0,
   elapsedTime: 0,
   isActive: false,
@@ -154,17 +155,31 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
   cruiseRealSeconds: 0,
   departedLocalHour: null,
   arrivalProcessed: false,
+  isRouteLoading: false,
   _lastPersistMs: 0,
 
   setDeparture: (place) => set({ departure: place }),
   setArrival: (place) => set({ arrival: place }),
-  setTransportMode: (mode) => set({ transportMode: mode }),
+  setJourneyType: (journeyType) => set({ journeyType }),
 
-  startFlight: () => {
-    const { departure, arrival, timeMode, customHour, transportMode } = get();
+  startFlight: async () => {
+    const { departure, arrival, timeMode, customHour, journeyType } = get();
     if (!departure || !arrival) return;
 
-    const route = generateRoute(departure, arrival, transportMode);
+    // For drive mode, fetch real road route from Mapbox Directions API
+    let route: JourneyRoute;
+    if (journeyType === 'drive') {
+      set({ isRouteLoading: true });
+      const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
+      try {
+        route = await generateRouteAsync(departure, arrival, journeyType, mapboxToken);
+      } catch {
+        route = generateRoute(departure, arrival, journeyType);
+      }
+      set({ isRouteLoading: false });
+    } else {
+      route = generateRoute(departure, arrival, journeyType);
+    }
 
     // Calculate departure time in UTC
     let departureUTC: number;
@@ -219,7 +234,7 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
         route: s.route,
         phase: s.phase,
         position: s.position,
-        transportMode: s.transportMode,
+        journeyType: s.journeyType,
         progress: s.progress,
         elapsedTime: s.elapsedTime,
         isActive: true,
@@ -290,23 +305,23 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
     const {
       isActive, isPaused, timeScale, elapsedTime, route,
       groundElapsed, sessionRealSeconds, cruiseRealSeconds, departureTimeUTC,
-      transportMode,
+      journeyType,
     } = get();
     if (!isActive || isPaused || !route) return;
 
     // Real (unscaled) wall-clock time the sim has been running this leg.
     const newSessionReal = sessionRealSeconds + deltaSeconds;
 
-    const modeGroundTotal = getGroundTotalSeconds(transportMode);
-    const modeGroundWorld = getGroundWorldSeconds(transportMode);
+    const modeGroundTotal = getGroundTotalSeconds(journeyType);
+    const modeGroundWorld = getGroundWorldSeconds(journeyType);
 
     // --- Ground sequence (boarding -> taxi -> takeoff / departing) -------
     // Runs in REAL time, unaffected by timeScale. The vehicle stays parked at
     // the departure point: progress stays 0, so no great-circle movement.
     if (groundElapsed < modeGroundTotal) {
       const newGround = Math.min(modeGroundTotal, groundElapsed + deltaSeconds);
-      const phase = getGroundPhaseForMode(newGround, transportMode) ?? 'TAKEOFF';
-      const speed = getGroundSpeedForMode(newGround, transportMode);
+      const phase = getGroundPhaseForMode(newGround, journeyType) ?? 'TAKEOFF';
+      const speed = getGroundSpeedForMode(newGround, journeyType);
       // Day/night clock advances through the notional ground-world duration.
       const simDate = new Date(
         departureTimeUTC + (newGround / modeGroundTotal) * modeGroundWorld * 1000
@@ -337,14 +352,14 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
     const scaledDelta = deltaSeconds * timeScale;
     const newElapsed = elapsedTime + scaledDelta;
     const progress = Math.min(1, newElapsed / route.duration);
-    const phase = getPhaseForProgressAndMode(progress, transportMode);
+    const phase = getPhaseForProgressAndMode(progress, journeyType);
 
     const newCruiseReal = (phase === 'CRUISE' || phase === 'DRIVING' || phase === 'SAILING')
       ? cruiseRealSeconds + deltaSeconds : cruiseRealSeconds;
 
     const routePoint = getPositionAtProgress(route, progress);
-    const altitude = getAltitudeForMode(progress, transportMode);
-    const speed = getSpeedForMode(progress, transportMode);
+    const altitude = getAltitudeForMode(progress, journeyType);
+    const speed = getSpeedForMode(progress, journeyType);
 
     const distanceRemaining = route.distance * (1 - progress);
     const timeRemaining = Math.max(0, route.duration - newElapsed);
@@ -390,7 +405,7 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
           route: state.route,
           phase,
           position: state.position,
-          transportMode: state.transportMode,
+          journeyType: state.journeyType,
           progress,
           elapsedTime: newElapsed,
           isActive: true,
@@ -421,7 +436,7 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
       route: p.route,
       phase: p.phase,
       position: p.position,
-      transportMode: p.transportMode ?? 'fly',
+      journeyType: p.journeyType ?? 'fly',
       progress: p.progress,
       elapsedTime: p.elapsedTime,
       isActive: p.isActive,

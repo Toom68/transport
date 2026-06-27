@@ -1,4 +1,4 @@
-import type { TransportMode } from '@/types/place';
+import type { JourneyType } from '@/types/place';
 
 const EARTH_RADIUS_KM = 6371;
 const EARTH_RADIUS_NM = 3440.065;
@@ -149,8 +149,8 @@ export function estimateSailDuration(distanceKm: number): number {
 }
 
 // Generic duration estimator that picks the right function based on mode
-export function estimateDuration(distanceKm: number, mode: TransportMode): number {
-  switch (mode) {
+export function estimateDuration(distanceKm: number, journeyType: JourneyType): number {
+  switch (journeyType) {
     case 'fly': return estimateFlightDuration(distanceKm);
     case 'drive': return estimateDriveDuration(distanceKm);
     case 'sail': return estimateSailDuration(distanceKm);
@@ -241,8 +241,8 @@ export function getSailAltitudeForProgress(_progress: number): number {
 }
 
 // Generic speed getter based on mode (returns knots for fly, km/h for drive/sail)
-export function getSpeedForMode(progress: number, mode: TransportMode): number {
-  switch (mode) {
+export function getSpeedForMode(progress: number, journeyType: JourneyType): number {
+  switch (journeyType) {
     case 'fly': return getSpeedForProgress(progress);
     case 'drive': return getDriveSpeedForProgress(progress);
     case 'sail': return getSailSpeedForProgress(progress);
@@ -251,8 +251,8 @@ export function getSpeedForMode(progress: number, mode: TransportMode): number {
 }
 
 // Generic altitude getter based on mode (returns feet)
-export function getAltitudeForMode(progress: number, mode: TransportMode): number {
-  switch (mode) {
+export function getAltitudeForMode(progress: number, journeyType: JourneyType): number {
+  switch (journeyType) {
     case 'fly': return getAltitudeForProgress(progress);
     case 'drive': return getDriveAltitudeForProgress(progress);
     case 'sail': return getSailAltitudeForProgress(progress);

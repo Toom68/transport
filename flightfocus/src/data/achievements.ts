@@ -53,9 +53,9 @@ export function buildAchievementContext(save: SaveGame): AchievementContext {
     const band = Math.floor(((v.place.lng + 180) % 360) / 30);
     longitudeBands.add(band);
 
-    if (v.transportMode === 'drive') hasDriven = true;
-    if (v.transportMode === 'sail') hasSailed = true;
-    if (v.transportMode === 'fly') hasFlown = true;
+    if (v.journeyType === 'drive') hasDriven = true;
+    if (v.journeyType === 'sail') hasSailed = true;
+    if (v.journeyType === 'fly') hasFlown = true;
   }
 
   const uniquePlaceCount = placeCounts.size;
@@ -326,6 +326,50 @@ export const ACHIEVEMENTS: Achievement[] = [
     category: 'hidden',
     hidden: true,
     check: (c) => Object.values(c.perContinentCounts).some((n) => n >= 5),
+  },
+
+  // ---- Drive-specific ----
+  {
+    id: 'road_warrior',
+    name: 'Road Warrior',
+    description: 'Complete 5 drives.',
+    icon: 'Car',
+    category: 'geographic',
+    check: (c) => c.save.stats.totalDrives >= 5,
+  },
+  {
+    id: 'road_master',
+    name: 'Asphalt Veteran',
+    description: 'Complete 25 drives.',
+    icon: 'Car',
+    category: 'geographic',
+    check: (c) => c.save.stats.totalDrives >= 25,
+  },
+  {
+    id: 'long_drive',
+    name: 'Long Haul Driver',
+    description: 'Drive more than 1,000 km in a single leg.',
+    icon: 'Road',
+    category: 'geographic',
+    check: (c) => c.hasDriven && c.save.stats.longestLegKm > 1000,
+  },
+  {
+    id: 'night_driver',
+    name: 'Night Driver',
+    description: 'Depart on a drive after 22:00 local time.',
+    icon: 'MoonStar',
+    category: 'hidden',
+    hidden: true,
+    check: (c) => c.hasDriven && c.anyRedEye,
+  },
+  {
+    id: 'cross_country_drive',
+    name: 'Cross Country',
+    description: 'Drive across 5 or more longitude bands.',
+    icon: 'Route',
+    category: 'hidden',
+    hidden: true,
+    check: (c) => c.hasDriven && c.longitudeBands.size >= 5,
   },
 ];
 

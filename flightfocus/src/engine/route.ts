@@ -1,4 +1,4 @@
-import type { Place, TransportMode } from '@/types/place';
+import type { Place, JourneyType } from '@/types/place';
 import type { JourneyRoute, RoutePoint } from '@/types/journey';
 import {
   greatCircleDistance,
@@ -6,11 +6,12 @@ import {
   intermediatePoint,
   estimateDuration,
 } from './navigation';
+import { fetchDriveRoute, generateDriveRouteSync } from './routing';
 
 export function generateRoute(
   departure: Place,
   arrival: Place,
-  mode: TransportMode = 'fly',
+  journeyType: JourneyType = 'fly',
   numPoints: number = 200
 ): JourneyRoute {
   const distance = greatCircleDistance(
@@ -27,7 +28,7 @@ export function generateRoute(
     arrival.lng
   );
 
-  const duration = estimateDuration(distance, mode);
+  const duration = estimateDuration(distance, journeyType);
 
   const points: RoutePoint[] = [];
 
@@ -65,7 +66,7 @@ export function generateRoute(
   }
 
   return {
-    mode,
+    journeyType,
     departure,
     arrival,
     distance,
@@ -82,6 +83,26 @@ export function generateFlightRoute(
   numPoints: number = 200
 ): JourneyRoute {
   return generateRoute(departure, arrival, 'fly', numPoints);
+}
+
+/**
+ * Async route generation. For drive mode, tries Mapbox Directions API first,
+ * falls back to great-circle. For fly/sail, uses sync great-circle.
+ */
+export async function generateRouteAsync(
+  departure: Place,
+  arrival: Place,
+  journeyType: JourneyType = 'fly',
+  mapboxToken?: string
+): Promise<JourneyRoute> {
+  if (journeyType === 'drive') {
+    if (mapboxToken) {
+      const driveRoute = await fetchDriveRoute(departure, arrival, mapboxToken);
+      if (driveRoute) return driveRoute;
+    }
+    return generateDriveRouteSync(departure, arrival);
+  }
+  return generateRoute(departure, arrival, journeyType);
 }
 
 export function getPositionAtProgress(

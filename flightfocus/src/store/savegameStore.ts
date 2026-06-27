@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Airport } from '@/types/airport';
-import type { Place, TransportMode } from '@/types/place';
+import type { Place, JourneyType } from '@/types/place';
 import type { SaveGame, VisitedPlace, JournalEntry } from '@/types/savegame';
 import { createEmptySaveStats, calculateMilesEarned } from '@/types/savegame';
 import {
@@ -18,7 +18,7 @@ export const MAX_SAVES = 5;
 export interface RecordArrivalInput {
   from: Place;
   to: Place;
-  transportMode: TransportMode;
+  journeyType: JourneyType;
   ambientMinutes: number;
   cruiseMinutes: number;
   departedLocalHour?: number;
@@ -82,7 +82,7 @@ export const useSavegameStore = create<SavegameStore>()(
           departedFrom: origin.id,
           ambientMinutesDuring: 0,
           distanceKm: 0,
-          transportMode: 'fly',
+          journeyType: 'fly',
         };
         const save: SaveGame = {
           id,
@@ -133,7 +133,7 @@ export const useSavegameStore = create<SavegameStore>()(
         const save = get().getActiveSave();
         if (!save) return null;
 
-        const { from, to, transportMode, ambientMinutes, cruiseMinutes, departedLocalHour } = input;
+        const { from, to, journeyType, ambientMinutes, cruiseMinutes, departedLocalHour } = input;
         const distanceKm =
           input.distanceKm ?? greatCircleDistance(from.lat, from.lng, to.lat, to.lng);
 
@@ -149,7 +149,7 @@ export const useSavegameStore = create<SavegameStore>()(
           crossedDateline: legCrossesDateline(from.lng, to.lng),
           departedLocalHour,
           cruiseMinutes,
-          transportMode,
+          journeyType,
         };
 
         const journalId = uid();
@@ -167,9 +167,9 @@ export const useSavegameStore = create<SavegameStore>()(
         // Build the next save snapshot so achievements can be evaluated against it.
         const stats = { ...save.stats };
         stats.totalLegs += 1;
-        if (transportMode === 'fly') stats.totalFlights += 1;
-        if (transportMode === 'drive') stats.totalDrives += 1;
-        if (transportMode === 'sail') stats.totalSails += 1;
+        if (journeyType === 'fly') stats.totalFlights += 1;
+        if (journeyType === 'drive') stats.totalDrives += 1;
+        if (journeyType === 'sail') stats.totalSails += 1;
         stats.totalAmbientMinutes += ambientMinutes;
         stats.totalDistanceKm += distanceKm;
         stats.longestLegKm = Math.max(stats.longestLegKm, distanceKm);
