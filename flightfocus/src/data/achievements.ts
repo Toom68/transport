@@ -349,7 +349,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     id: 'long_drive',
     name: 'Long Haul Driver',
     description: 'Drive more than 1,000 km in a single leg.',
-    icon: 'Road',
+    icon: 'Route',
     category: 'geographic',
     check: (c) => c.hasDriven && c.save.stats.longestLegKm > 1000,
   },

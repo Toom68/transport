@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Plane, Car, Clock, Navigation, Gauge, Mountain, Award, Road } from 'lucide-react';
+import { Plane, Car, Clock, Navigation, Gauge, Mountain, Award, Route } from 'lucide-react';
 import { useFlightStore } from '@/store/flightStore';
 import { useSavegameStore } from '@/store/savegameStore';
 import { getPhaseDescription, formatDuration, formatDistance } from '@/engine/simulation';
@@ -27,7 +27,7 @@ export function FlightInfo() {
           value: `${Math.round(position.speed)} km/h`,
         },
         {
-          icon: Road,
+          icon: Route,
           label: 'Distance Done',
           value: `${Math.round(route.distance - position.distanceRemaining)} km`,
         },
