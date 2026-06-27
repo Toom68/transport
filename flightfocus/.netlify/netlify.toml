@@ -7,10 +7,10 @@ headers = []
 [functions."*"]
 
 [build]
-publish = "/Users/thomasmaynard/CascadeProjects/flightfocus/dist"
+publish = "dist"
 publishOrigin = "config"
 commandOrigin = "config"
-base = "/Users/thomasmaynard/CascadeProjects/flightfocus"
+base = "."
 command = "npm run build"
 
 [build.environment]
