@@ -63,9 +63,9 @@ export function WindowView() {
             <ellipse cx="50%" cy="50%" rx="28%" ry="42%" fill="black" />
           </mask>
           <radialGradient id="wallGrad" cx="50%" cy="50%" r="75%">
-            <stop offset="0%" stopColor={mode === 'dark' ? '#1e293b' : '#faf6ee'} />
-            <stop offset="60%" stopColor={mode === 'dark' ? '#0f172a' : '#e8e0d0'} />
-            <stop offset="100%" stopColor={mode === 'dark' ? '#020617' : '#c4b89e'} />
+            <stop offset="0%" stopColor={mode === 'dark' ? '#6b6353' : '#ffffff'} />
+            <stop offset="60%" stopColor={mode === 'dark' ? '#4a4338' : '#e8e2d4'} />
+            <stop offset="100%" stopColor={mode === 'dark' ? '#3d3528' : '#c4b89e'} />
           </radialGradient>
           <radialGradient id="bezelGrad" cx="50%" cy="30%" r="80%">
             <stop offset="0%" stopColor={mode === 'dark' ? '#a89e8a' : '#ffffff'} />
