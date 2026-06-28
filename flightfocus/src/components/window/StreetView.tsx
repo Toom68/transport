@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { Viewer } from 'mapillary-js';
+import 'mapillary-js/dist/mapillary.css';
 
 interface StreetViewProps {
   lat: number;
@@ -8,24 +10,11 @@ interface StreetViewProps {
   isMoving: boolean;
 }
 
-interface CachedImage {
-  id: string;
-  url: string;
-  lat: number;
-  lng: number;
-  compassAngle: number;
-  isPano: boolean;
-  distance: number; // distance from car position when fetched
-}
+const FETCH_INTERVAL_MS = 3000;
+const CORRIDOR_RADIUS_DEG = 0.004; // ~400m half-width
+const SEARCH_LIMIT = 50;
+const MIN_MOVE_MS = 1500; // min time between viewer moves
 
-const FETCH_BATCH_INTERVAL_MS = 4000; // re-fetch corridor every 4s
-const MIN_IMAGE_SWAP_MS = 800; // min time between image swaps
-const CORRIDOR_RADIUS_DEG = 0.005; // ~500m half-width bbox
-const SEARCH_LIMIT = 50; // grab more images per batch
-const HEADING_TOLERANCE = 90; // relaxed — accept more images
-const NEARBY_THRESHOLD_M = 80; // show image when car is within this distance
-
-// Haversine distance in meters
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -41,203 +30,138 @@ function headingDiff(imgAngle: number, carHeading: number): number {
 }
 
 export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetViewProps) {
-  const [current, setCurrent] = useState<CachedImage | null>(null);
-  const [next, setNext] = useState<CachedImage | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<Viewer | null>(null);
+  const currentImageIdRef = useRef<string | null>(null);
+  const lastMoveRef = useRef(0);
+  const rafRef = useRef<number>(0);
   const [loading, setLoading] = useState(true);
   const [noCoverage, setNoCoverage] = useState(false);
-  const 
-    cacheRef = useRef<CachedImage[]>([]),
-    lastBatchFetchRef = useRef(0),
-    lastSwapRef = useRef(0),
-    rafRef = useRef<number>(0),
-    lastCarPosRef = useRef({ lat, lng }),
-    shownIdsRef = useRef<Set<string>>(new Set());
 
-  // Fetch a batch of images in a bounding box corridor ahead of the car
-  const fetchCorridor = useCallback(async (carLat: number, carLng: number, carHeading: number): Promise<CachedImage[]> => {
-    // Build a bounding box centered on the car, extended ahead in the direction of travel
-    const headingRad = carHeading * Math.PI / 180;
-    const aheadDist = CORRIDOR_RADIUS_DEG * 1.5;
-    const sideDist = CORRIDOR_RADIUS_DEG;
+  // Find nearest image ID via Mapillary API
+  const findNearestImageId = useCallback(async (carLat: number, carLng: number, carHeading: number): Promise<string | null> => {
+    // Try radius search first (most accurate)
+    const radiusUrl = `https://graph.mapillary.com/images?access_token=${accessToken}` +
+      `&fields=id,compass_angle,is_pano,geometry,sequence` +
+      `&lat=${carLat}&lng=${carLng}&radius=50&limit=20`;
 
-    // Approximate offsets (good enough for small distances)
-    const latOffset = aheadDist * Math.cos(headingRad);
-    const lngOffset = aheadDist * Math.sin(headingRad) / Math.cos(carLat * Math.PI / 180);
+    try {
+      const resp = await fetch(radiusUrl);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.data && data.data.length > 0) {
+          // Pick best by heading match
+          let best: any = null;
+          let bestScore = Infinity;
+          for (const img of data.data) {
+            const hDiff = img.is_pano ? 0 : headingDiff(img.compass_angle ?? 0, carHeading);
+            const score = hDiff;
+            if (score < bestScore) {
+              bestScore = score;
+              best = img;
+            }
+          }
+          if (best) return best.id;
+        }
+      }
+    } catch {}
 
-    const centerLat = carLat + latOffset;
-    const centerLng = carLng + lngOffset;
-
-    const minLat = Math.min(carLat, centerLat) - sideDist;
-    const maxLat = Math.max(carLat, centerLat) + sideDist;
-    const minLng = Math.min(carLng, centerLng) - sideDist;
-    const maxLng = Math.max(carLng, centerLng) + sideDist;
-
-    const url = `https://graph.mapillary.com/images?access_token=${accessToken}` +
-      `&fields=id,compass_angle,thumb_2048_url,thumb_1024_url,is_pano,geometry` +
-      `&bbox=${minLng},${minLat},${maxLng},${maxLat}` +
+    // Fallback: bbox search
+    const d = CORRIDOR_RADIUS_DEG;
+    const bboxUrl = `https://graph.mapillary.com/images?access_token=${accessToken}` +
+      `&fields=id,compass_angle,is_pano,geometry,sequence` +
+      `&bbox=${carLng - d},${carLat - d},${carLng + d},${carLat + d}` +
       `&limit=${SEARCH_LIMIT}`;
 
     try {
-      const resp = await fetch(url);
-      if (!resp.ok) return [];
-      const data = await resp.json();
-      if (!data.data || data.data.length === 0) return [];
+      const resp = await fetch(bboxUrl);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.data && data.data.length > 0) {
+          // Find closest by distance
+          let best: any = null;
+          let bestDist = Infinity;
+          for (const img of data.data) {
+            const imgLat = img.geometry?.coordinates?.[1] ?? carLat;
+            const imgLng = img.geometry?.coordinates?.[0] ?? carLng;
+            const dist = haversineMeters(carLat, carLng, imgLat, imgLng);
+            const hDiff = img.is_pano ? 0 : headingDiff(img.compass_angle ?? 0, carHeading);
+            const score = dist + hDiff * 3;
+            if (score < bestDist) {
+              bestDist = score;
+              best = img;
+            }
+          }
+          if (best) return best.id;
+        }
+      }
+    } catch {}
 
-      return data.data
-        .filter((img: any) => img.thumb_2048_url || img.thumb_1024_url)
-        .map((img: any) => ({
-          id: img.id,
-          url: img.thumb_2048_url || img.thumb_1024_url,
-          lat: img.geometry?.coordinates?.[1] ?? carLat,
-          lng: img.geometry?.coordinates?.[0] ?? carLng,
-          compassAngle: img.compass_angle ?? 0,
-          isPano: img.is_pano ?? false,
-          distance: haversineMeters(carLat, carLng, img.geometry?.coordinates?.[1] ?? carLat, img.geometry?.coordinates?.[0] ?? carLng),
-        }))
-        .sort((a: CachedImage, b: CachedImage) => {
-          // Sort by distance from car, but prefer images facing the right direction
-          const aScore = a.distance + (a.isPano ? 0 : headingDiff(a.compassAngle, carHeading) * 2);
-          const bScore = b.distance + (b.isPano ? 0 : headingDiff(b.compassAngle, carHeading) * 2);
-          return aScore - bScore;
-        });
-    } catch {
-      return [];
-    }
+    return null;
   }, [accessToken]);
 
-  // Pick the best image from cache for the current car position
-  const pickBestFromCache = useCallback((carLat: number, carLng: number, carHeading: number): CachedImage | null => {
-    const cache = cacheRef.current;
-    if (cache.length === 0) return null;
-
-    let best: CachedImage | null = null;
-    let bestScore = Infinity;
-
-    for (const img of cache) {
-      if (shownIdsRef.current.has(img.id)) continue;
-
-      const dist = haversineMeters(carLat, carLng, img.lat, img.lng);
-      // Only consider images within a reasonable distance
-      if (dist > 300) continue;
-
-      const hDiff = img.isPano ? 0 : headingDiff(img.compassAngle, carHeading);
-      // Score: prefer closer images and ones facing the right direction
-      const score = dist + hDiff * 3;
-
-      if (score < bestScore) {
-        bestScore = score;
-        best = img;
-      }
-    }
-
-    // If all images in cache have been shown, reset and pick the closest
-    if (!best && cache.length > 0) {
-      shownIdsRef.current.clear();
-      best = cache[0];
-    }
-
-    return best;
-  }, []);
-
-  // Initial fetch
+  // Initialize MapillaryJS viewer
   useEffect(() => {
+    if (!containerRef.current) return;
+
     let cancelled = false;
+
     (async () => {
-      const images = await fetchCorridor(lat, lng, heading);
-      if (cancelled) return;
-      if (images.length > 0) {
-        cacheRef.current = images;
-        const best = images[0];
-        shownIdsRef.current.add(best.id);
-        const img = new Image();
-        img.onload = () => {
-          if (cancelled) return;
-          setCurrent(best);
-          setLoading(false);
-        };
-        img.onerror = () => {
-          if (cancelled) return;
-          setNoCoverage(true);
-          setLoading(false);
-        };
-        img.src = best.url;
-      } else {
+      const imageId = await findNearestImageId(lat, lng, heading);
+      if (cancelled || !imageId) {
         setNoCoverage(true);
         setLoading(false);
+        return;
       }
+
+      const viewer = new Viewer({
+        accessToken,
+        container: containerRef.current!,
+        imageId,
+        component: { cover: false },
+      });
+
+      viewerRef.current = viewer;
+      currentImageIdRef.current = imageId;
+
+      viewer.on('image', () => {
+        setLoading(false);
+      });
     })();
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+      if (viewerRef.current) {
+        viewerRef.current.remove();
+        viewerRef.current = null;
+      }
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Main loop: fetch corridors + advance through cached images
+  // Main loop: find nearest image and move viewer to it as car moves
   useEffect(() => {
     const tick = () => {
       const now = Date.now();
 
-      // Re-fetch corridor if cache is running low or enough time has passed
-      if (isMoving && now - lastBatchFetchRef.current >= FETCH_BATCH_INTERVAL_MS) {
-        lastBatchFetchRef.current = now;
+      if (isMoving && viewerRef.current && now - lastMoveRef.current >= MIN_MOVE_MS) {
+        lastMoveRef.current = now;
         (async () => {
-          const images = await fetchCorridor(lat, lng, heading);
-          if (images.length > 0) {
-            // Merge new images into cache, avoiding duplicates
-            const existingIds = new Set(cacheRef.current.map(i => i.id));
-            const newOnes = images.filter(i => !existingIds.has(i.id));
-            cacheRef.current = [...cacheRef.current, ...newOnes].slice(0, 100);
-          }
+          const imageId = await findNearestImageId(lat, lng, heading);
+          if (!imageId || imageId === currentImageIdRef.current) return;
+
+          // Smoothly move to the new image
+          try {
+            await viewerRef.current?.moveTo(imageId);
+            currentImageIdRef.current = imageId;
+          } catch {}
         })();
       }
 
-      // Check if we should advance to the next image
-      if (isMoving && !next && now - lastSwapRef.current >= MIN_IMAGE_SWAP_MS) {
-        const best = pickBestFromCache(lat, lng, heading);
-        if (best && best.id !== current?.id) {
-          lastSwapRef.current = now;
-          shownIdsRef.current.add(best.id);
-          const img = new Image();
-          img.onload = () => {
-            setNext(best);
-          };
-          img.src = best.url;
-        }
-      }
-
-      // If not moving and no image, try to show one
-      if (!isMoving && !current && cacheRef.current.length > 0) {
-        const best = cacheRef.current[0];
-        shownIdsRef.current.add(best.id);
-        const img = new Image();
-        img.onload = () => setCurrent(best);
-        img.src = best.url;
-      }
-
-      lastCarPosRef.current = { lat, lng };
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [lat, lng, heading, isMoving, current, next, fetchCorridor, pickBestFromCache]);
-
-  // Crossfade: when next image is preloaded, swap it in
-  useEffect(() => {
-    if (!next) return;
-    const timer = setTimeout(() => {
-      setCurrent(next);
-      setNext(null);
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [next]);
-
-  if (loading) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center bg-theme-dim">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-theme-accent border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-theme-muted">Loading street view…</p>
-        </div>
-      </div>
-    );
-  }
+  }, [lat, lng, heading, isMoving, findNearestImageId]);
 
   if (noCoverage) {
     return (
@@ -255,31 +179,14 @@ export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetV
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-black">
-      {current && (
-        <img
-          key={current.id}
-          src={current.url}
-          alt="Street view"
-          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in-out"
-          style={{ opacity: next ? 0 : 1 }}
-        />
-      )}
-      {next && (
-        <img
-          src={next.url}
-          alt="Street view loading"
-          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in-out"
-          style={{ opacity: 1 }}
-        />
-      )}
-      {/* Subtle motion blur overlay when moving fast */}
-      {isMoving && (
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: 'radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.15) 100%)',
-          }}
-        />
+      <div ref={containerRef} className="absolute inset-0 w-full h-full" />
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-theme-dim z-20">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-theme-accent border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs text-theme-muted">Loading street view…</p>
+          </div>
+        </div>
       )}
       {/* Mapillary attribution — required by terms */}
       <div className="absolute bottom-1 right-1 pointer-events-none z-10">
