@@ -21,6 +21,12 @@ export interface FocusSession {
   isActive: boolean;
 }
 
+export interface FocusTask {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
 export interface TimerConfig {
   workDuration: number;
   breakDuration: number;
