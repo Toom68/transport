@@ -26,7 +26,11 @@ function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number)
 }
 
 function headingDiff(imgAngle: number, carHeading: number): number {
-  return Math.abs(((imgAngle - carHeading + 540) % 360) - 180);
+  // compass_angle is the direction the camera was facing.
+  // We want images facing the same direction the car is traveling.
+  // Flip by 180 because Mapillary camera convention may be opposite to travel direction.
+  const effectiveHeading = (carHeading + 180) % 360;
+  return Math.abs(((imgAngle - effectiveHeading + 540) % 360) - 180);
 }
 
 export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetViewProps) {
@@ -55,7 +59,11 @@ export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetV
           let bestScore = Infinity;
           for (const img of data.data) {
             const hDiff = img.is_pano ? 0 : headingDiff(img.compass_angle ?? 0, carHeading);
-            const score = hDiff;
+            // Also factor in distance — prefer closer images
+            const imgLat = img.geometry?.coordinates?.[1] ?? carLat;
+            const imgLng = img.geometry?.coordinates?.[0] ?? carLng;
+            const dist = haversineMeters(carLat, carLng, imgLat, imgLng);
+            const score = dist + hDiff * 5;
             if (score < bestScore) {
               bestScore = score;
               best = img;
