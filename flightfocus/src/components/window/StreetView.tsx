@@ -11,9 +11,11 @@ interface StreetViewProps {
   isMoving: boolean;
 }
 
-const CORRIDOR_RADIUS_DEG = 0.004;
+const CORRIDOR_RADIUS_DEG = 0.01; // ~1km half-width
+const SEARCH_RADIUS_M = 500; // search within 500m of car
 const SEARCH_LIMIT = 50;
-const MIN_MOVE_MS = 1500;
+const MIN_MOVE_MS = 2000; // min time between viewer moves
+const MIN_DIST_M = 50; // min distance car must travel before re-searching
 const GOOGLE_FETCH_MS = 3000;
 const GOOGLE_IMG_SIZE = 640;
 
@@ -48,17 +50,33 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
   const [loading, setLoading] = useState(true);
   const [provider, setProvider] = useState<Provider>('mapillary');
 
+  // Refs for position data — updated every render without retriggering the RAF loop
+  const latRef = useRef(lat);
+  const lngRef = useRef(lng);
+  const headingRef = useRef(heading);
+  const isMovingRef = useRef(isMoving);
+  const providerRef = useRef<Provider>('mapillary');
+  const lastSearchLatRef = useRef(lat);
+  const lastSearchLngRef = useRef(lng);
+
   // Google fallback state
   const [googleCurrent, setGoogleCurrent] = useState<GoogleImg | null>(null);
   const [googleNext, setGoogleNext] = useState<GoogleImg | null>(null);
   const googleLastFetchRef = useRef(0);
   const googleLastUrlRef = useRef<string | null>(null);
 
+  // Sync refs every render
+  latRef.current = lat;
+  lngRef.current = lng;
+  headingRef.current = heading;
+  isMovingRef.current = isMoving;
+  providerRef.current = provider;
+
   // Find nearest image ID via Mapillary API
-  const findNearestImageId = useCallback(async (carLat: number, carLng: number, carHeading: number): Promise<string | null> => {
+  const findNearestImageId = useCallback(async (carLat: number, carLng: number, carHeading: number): Promise<{ id: string; lat: number; lng: number } | null> => {
     const radiusUrl = `https://graph.mapillary.com/images?access_token=${accessToken}` +
-      `&fields=id,compass_angle,is_pano,geometry,sequence` +
-      `&lat=${carLat}&lng=${carLng}&radius=50&limit=20`;
+      `&fields=id,compass_angle,is_pano,geometry` +
+      `&lat=${carLat}&lng=${carLng}&radius=${SEARCH_RADIUS_M}&limit=50`;
 
     try {
       const resp = await fetch(radiusUrl);
@@ -72,21 +90,28 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
             const imgLat = img.geometry?.coordinates?.[1] ?? carLat;
             const imgLng = img.geometry?.coordinates?.[0] ?? carLng;
             const dist = haversineMeters(carLat, carLng, imgLat, imgLng);
-            const score = dist + hDiff * 5;
+            // Weight distance heavily — we want the closest image that roughly faces the right way
+            const score = dist + hDiff * 2;
             if (score < bestScore) {
               bestScore = score;
               best = img;
             }
           }
-          if (best) return best.id;
+          if (best) {
+            return {
+              id: best.id,
+              lat: best.geometry?.coordinates?.[1] ?? carLat,
+              lng: best.geometry?.coordinates?.[0] ?? carLng,
+            };
+          }
         }
       }
     } catch {}
 
-    // Fallback: bbox search
+    // Fallback: bbox search with larger area
     const d = CORRIDOR_RADIUS_DEG;
     const bboxUrl = `https://graph.mapillary.com/images?access_token=${accessToken}` +
-      `&fields=id,compass_angle,is_pano,geometry,sequence` +
+      `&fields=id,compass_angle,is_pano,geometry` +
       `&bbox=${carLng - d},${carLat - d},${carLng + d},${carLat + d}` +
       `&limit=${SEARCH_LIMIT}`;
 
@@ -96,19 +121,25 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
         const data = await resp.json();
         if (data.data && data.data.length > 0) {
           let best: any = null;
-          let bestDist = Infinity;
+          let bestScore = Infinity;
           for (const img of data.data) {
             const imgLat = img.geometry?.coordinates?.[1] ?? carLat;
             const imgLng = img.geometry?.coordinates?.[0] ?? carLng;
             const dist = haversineMeters(carLat, carLng, imgLat, imgLng);
             const hDiff = img.is_pano ? 0 : headingDiff(img.compass_angle ?? 0, carHeading);
-            const score = dist + hDiff * 3;
-            if (score < bestDist) {
-              bestDist = score;
+            const score = dist + hDiff * 2;
+            if (score < bestScore) {
+              bestScore = score;
               best = img;
             }
           }
-          if (best) return best.id;
+          if (best) {
+            return {
+              id: best.id,
+              lat: best.geometry?.coordinates?.[1] ?? carLat,
+              lng: best.geometry?.coordinates?.[0] ?? carLng,
+            };
+          }
         }
       }
     } catch {}
@@ -139,20 +170,23 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
     let cancelled = false;
 
     (async () => {
-      const imageId = await findNearestImageId(lat, lng, heading);
+      const result = await findNearestImageId(lat, lng, heading);
       if (cancelled) return;
 
-      if (imageId && containerRef.current) {
+      if (result && containerRef.current) {
         // Mapillary has coverage — use WebGL viewer
         setProvider('mapillary');
+        providerRef.current = 'mapillary';
         const viewer = new Viewer({
           accessToken,
           container: containerRef.current!,
-          imageId,
+          imageId: result.id,
           component: { cover: false },
         });
         viewerRef.current = viewer;
-        currentImageIdRef.current = imageId;
+        currentImageIdRef.current = result.id;
+        lastSearchLatRef.current = result.lat;
+        lastSearchLngRef.current = result.lng;
         viewer.on('image', () => setLoading(false));
       } else if (googleApiKey) {
         // No Mapillary coverage — try Google
@@ -193,31 +227,47 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Main loop: advance street view as car moves
+  // Uses refs so the RAF loop runs continuously without being cancelled on every position change
   useEffect(() => {
     const tick = () => {
       const now = Date.now();
+      const curLat = latRef.current;
+      const curLng = lngRef.current;
+      const curHeading = headingRef.current;
+      const curProvider = providerRef.current;
+      const moving = isMovingRef.current;
 
-      if (isMoving && now - lastMoveRef.current >= MIN_MOVE_MS) {
-        lastMoveRef.current = now;
+      if (moving && now - lastMoveRef.current >= MIN_MOVE_MS) {
+        // Check if car has moved enough from last searched position
+        const distFromLastSearch = haversineMeters(curLat, curLng, lastSearchLatRef.current, lastSearchLngRef.current);
 
-        if (provider === 'mapillary' && viewerRef.current) {
-          (async () => {
-            const imageId = await findNearestImageId(lat, lng, heading);
-            if (!imageId || imageId === currentImageIdRef.current) return;
-            try {
-              await viewerRef.current?.moveTo(imageId);
-              currentImageIdRef.current = imageId;
-            } catch {}
-          })();
-        } else if (provider === 'google' && googleApiKey && now - googleLastFetchRef.current >= GOOGLE_FETCH_MS) {
-          googleLastFetchRef.current = now;
-          (async () => {
-            const result = await fetchGoogleStreetView(lat, lng, heading);
-            if (!result || result.url === googleLastUrlRef.current) return;
-            const img = new Image();
-            img.onload = () => setGoogleNext(result);
-            img.src = result.url;
-          })();
+        if (distFromLastSearch >= MIN_DIST_M || !currentImageIdRef.current) {
+          lastMoveRef.current = now;
+
+          if (curProvider === 'mapillary' && viewerRef.current) {
+            (async () => {
+              const result = await findNearestImageId(curLat, curLng, curHeading);
+              if (!result || result.id === currentImageIdRef.current) return;
+              try {
+                await viewerRef.current?.moveTo(result.id);
+                currentImageIdRef.current = result.id;
+                lastSearchLatRef.current = result.lat;
+                lastSearchLngRef.current = result.lng;
+              } catch {}
+            })();
+          } else if (curProvider === 'google' && googleApiKey && now - googleLastFetchRef.current >= GOOGLE_FETCH_MS) {
+            googleLastFetchRef.current = now;
+            (async () => {
+              const result = await fetchGoogleStreetView(curLat, curLng, curHeading);
+              if (!result || result.url === googleLastUrlRef.current) return;
+              const img = new Image();
+              img.onload = () => setGoogleNext(result);
+              img.src = result.url;
+            })();
+          }
+        } else {
+          // Not far enough yet — reset timer so we check again promptly
+          lastMoveRef.current = now - MIN_MOVE_MS + 500;
         }
       }
 
@@ -225,7 +275,7 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [lat, lng, heading, isMoving, provider, googleApiKey, findNearestImageId, fetchGoogleStreetView]);
+  }, [findNearestImageId, fetchGoogleStreetView, googleApiKey]);
 
   // Google crossfade
   useEffect(() => {
