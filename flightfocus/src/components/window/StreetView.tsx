@@ -18,11 +18,13 @@ const MIN_DIST_M = 30;
 const GOOGLE_FETCH_MS = 3000;
 const GOOGLE_IMG_SIZE = 640;
 const MAX_MAPILLARY_DIST_M = 100;
-const SEARCH_RADII = [15, 30, 60, 120];
+const SEARCH_RADII = [15, 30, 50];
 const MAX_CROSS_TRACK_M = 15;
 const STICKY_SEQUENCE_END_M = 50; // how far past last image before switching sequences
 const STICKY_SEQUENCE_MAX_GAP_M = 200; // max gap before abandoning current sequence
 const BEARING_MATCH_DEG = 90; // image compass_angle must be within this of route bearing
+const COVERAGE_CHECK_MS = 1000; // how often to poll for Mapillary coverage
+const GOOGLE_COVERAGE_CHECK_MS = 5000; // less frequent Google checks to limit API costs
 
 // Decompose distance into along-track (forward/back) and cross-track (left/right) relative to heading
 function crossTrackDistance(carLat: number, carLng: number, imgLat: number, imgLng: number, headingDeg: number): { along: number; cross: number; total: number } {
@@ -122,6 +124,9 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
   const [googleNext, setGoogleNext] = useState<GoogleImg | null>(null);
   const googleLastFetchRef = useRef(0);
   const googleLastUrlRef = useRef<string | null>(null);
+  const lastCoverageCheckRef = useRef(0);
+  const lastGoogleCheckRef = useRef(0);
+  const coverageCheckInProgressRef = useRef(false);
 
   // Sync refs every render
   latRef.current = lat;
@@ -303,6 +308,48 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
     }
   }, [googleApiKey]);
 
+  // Initialize Mapillary viewer from the best sequence near a position.
+  // Returns true if successfully initialized, false if no coverage.
+  // Container is always mounted (hidden when not active) so containerRef is available.
+  const initMapillaryViewer = useCallback(async (
+    carLat: number,
+    carLng: number,
+  ): Promise<boolean> => {
+    if (!containerRef.current) return false;
+
+    const seqResult = await findBestSequence(carLat, carLng);
+    if (!seqResult || !containerRef.current) return false;
+
+    const images = await preloadSequence(seqResult.sequenceId);
+    if (images.length === 0 || !containerRef.current) return false;
+
+    // Clean up any existing viewer
+    if (viewerRef.current) {
+      viewerRef.current.remove();
+      viewerRef.current = null;
+    }
+
+    setProvider('mapillary');
+    providerRef.current = 'mapillary';
+    currentSequenceIdRef.current = seqResult.sequenceId;
+    sequenceImagesRef.current = images;
+    const startIndex = findStartIndexForPosition(carLat, carLng, images);
+    const startId = images[startIndex]?.id ?? seqResult.firstImageId;
+    sequenceIndexRef.current = startIndex;
+    const viewer = new Viewer({
+      accessToken,
+      container: containerRef.current,
+      imageId: startId,
+      component: { cover: false },
+    });
+    viewerRef.current = viewer;
+    currentImageIdRef.current = startId;
+    lastSearchLatRef.current = images[startIndex]?.lat ?? carLat;
+    lastSearchLngRef.current = images[startIndex]?.lng ?? carLng;
+    viewer.on('image', () => setLoading(false));
+    return true;
+  }, [accessToken, findBestSequence, preloadSequence, findStartIndexForPosition]);
+
   // Initialize: find best Mapillary sequence, preload it, fall back to Google
   useEffect(() => {
     let cancelled = false;
@@ -391,8 +438,8 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Main loop: advance through preloaded sequence as car moves
-  // Sticky sequence: stays on current sequence until exhausted, then finds a new one
-  // Falls back to Google if no Mapillary coverage; switches back when coverage returns
+  // Coverage check: polls for Mapillary every second regardless of movement
+  // Google is strictly secondary — only used when Mapillary has no coverage
   useEffect(() => {
     const tick = () => {
       const now = Date.now();
@@ -402,6 +449,49 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
       const curProvider = providerRef.current;
       const moving = isMovingRef.current;
 
+      // Coverage check — every ~1s, regardless of movement
+      // When 'none': try Mapillary first, then Google as secondary fallback
+      // When 'google': check if Mapillary coverage returned to switch back
+      if (now - lastCoverageCheckRef.current >= COVERAGE_CHECK_MS && !coverageCheckInProgressRef.current) {
+        lastCoverageCheckRef.current = now;
+
+        if (curProvider === 'none') {
+          coverageCheckInProgressRef.current = true;
+          (async () => {
+            // Try Mapillary first (primary provider)
+            const switched = await initMapillaryViewer(curLat, curLng);
+            coverageCheckInProgressRef.current = false;
+            if (switched) return;
+
+            // No Mapillary — try Google as secondary fallback (less frequently to limit API costs)
+            if (googleApiKey && now - lastGoogleCheckRef.current >= GOOGLE_COVERAGE_CHECK_MS) {
+              lastGoogleCheckRef.current = now;
+              const gResult = await fetchGoogleStreetView(curLat, curLng, curHeading);
+              if (gResult) {
+                setProvider('google');
+                providerRef.current = 'google';
+                googleLastUrlRef.current = gResult.url;
+                setGoogleCurrent(gResult);
+                setLoading(false);
+              }
+            }
+          })();
+        } else if (curProvider === 'google') {
+          coverageCheckInProgressRef.current = true;
+          (async () => {
+            // Check if Mapillary coverage has returned (switch back to primary)
+            const switched = await initMapillaryViewer(curLat, curLng);
+            coverageCheckInProgressRef.current = false;
+            if (switched) {
+              googleLastUrlRef.current = null;
+              setGoogleCurrent(null);
+              setGoogleNext(null);
+            }
+          })();
+        }
+      }
+
+      // Movement-based logic: advance through sequences/images
       if (moving && now - lastMoveRef.current >= MIN_MOVE_MS) {
         const distFromLastSearch = haversineMeters(curLat, curLng, lastSearchLatRef.current, lastSearchLngRef.current);
 
@@ -473,33 +563,7 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
           } else if (curProvider === 'google' && googleApiKey && now - googleLastFetchRef.current >= GOOGLE_FETCH_MS) {
             googleLastFetchRef.current = now;
             (async () => {
-              // Check if Mapillary now has coverage (to switch back)
-              const seqResult = await findBestSequence(curLat, curLng);
-              if (seqResult && containerRef.current) {
-                const newImages = await preloadSequence(seqResult.sequenceId);
-                if (newImages.length > 0 && containerRef.current) {
-                  setProvider('mapillary');
-                  providerRef.current = 'mapillary';
-                  currentSequenceIdRef.current = seqResult.sequenceId;
-                  sequenceImagesRef.current = newImages;
-                  const startIndex = findStartIndexForPosition(curLat, curLng, newImages);
-                  const startId = newImages[startIndex]?.id ?? seqResult.firstImageId;
-                  sequenceIndexRef.current = startIndex;
-                  const viewer = new Viewer({
-                    accessToken,
-                    container: containerRef.current!,
-                    imageId: startId,
-                    component: { cover: false },
-                  });
-                  viewerRef.current = viewer;
-                  currentImageIdRef.current = startId;
-                  lastSearchLatRef.current = newImages[startIndex]?.lat ?? curLat;
-                  lastSearchLngRef.current = newImages[startIndex]?.lng ?? curLng;
-                  viewer.on('image', () => {});
-                  return;
-                }
-              }
-              // No Mapillary — continue with Google
+              // Fetch next Google image (Mapillary coverage check is handled above)
               const gResult = await fetchGoogleStreetView(curLat, curLng, curHeading);
               if (!gResult || gResult.url === googleLastUrlRef.current) return;
               const img = new Image();
@@ -516,7 +580,7 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [findBestSequence, preloadSequence, findStartIndexForPosition, shouldAdvanceToNext, isSequenceExhausted, fetchGoogleStreetView, googleApiKey, accessToken]);
+  }, [findBestSequence, preloadSequence, findStartIndexForPosition, shouldAdvanceToNext, isSequenceExhausted, fetchGoogleStreetView, initMapillaryViewer, googleApiKey, accessToken]);
 
   // Google crossfade
   useEffect(() => {
@@ -529,26 +593,14 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
     return () => clearTimeout(timer);
   }, [googleNext]);
 
-  if (provider === 'none') {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center bg-theme-dim">
-        <div className="flex flex-col items-center gap-2 text-center px-6">
-          <svg className="w-10 h-10 text-theme-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5l9-4.5 9 4.5M3 7.5v9l9 4.5 9-4.5v-9M3 7.5L12 12m0 0l9-4.5M12 12v9.5" />
-          </svg>
-          <p className="text-xs text-theme-muted">No street view coverage along this route</p>
-          <p className="text-[10px] text-theme-muted/60">Try switching to Windshield view</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="absolute inset-0 overflow-hidden bg-black">
-      {/* Mapillary WebGL viewer */}
-      {provider === 'mapillary' && (
-        <div ref={containerRef} className="absolute inset-0 w-full h-full" />
-      )}
+      {/* Mapillary WebGL viewer — always mounted so containerRef is available for provider switches */}
+      <div
+        ref={containerRef}
+        className="absolute inset-0 w-full h-full"
+        style={{ display: provider === 'mapillary' ? 'block' : 'none' }}
+      />
 
       {/* Google Street View static images */}
       {provider === 'google' && googleCurrent && (
@@ -567,6 +619,18 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
           className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in-out"
           style={{ opacity: 1 }}
         />
+      )}
+
+      {provider === 'none' && (
+        <div className="absolute inset-0 flex items-center justify-center bg-theme-dim">
+          <div className="flex flex-col items-center gap-2 text-center px-6">
+            <svg className="w-10 h-10 text-theme-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5l9-4.5 9 4.5M3 7.5v9l9 4.5 9-4.5v-9M3 7.5L12 12m0 0l9-4.5M12 12v9.5" />
+            </svg>
+            <p className="text-xs text-theme-muted">No street view coverage along this route</p>
+            <p className="text-[10px] text-theme-muted/60">Try switching to Windshield view</p>
+          </div>
+        </div>
       )}
 
       {loading && (

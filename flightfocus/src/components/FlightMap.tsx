@@ -132,13 +132,8 @@ export function FlightMap() {
   const driveZoom = 13;
   const zoom = isDrive ? driveZoom : (maxSpan > 100 ? 3 : maxSpan > 50 ? 4 : maxSpan > 20 ? 5 : 6);
 
-  // For drive mode, use all points to follow roads precisely.
-  // For flight, decimate to reduce polyline vertex count.
-  const routeLatLngs: [number, number][] = route.points
-    .filter((_: unknown, i: number) =>
-      isDrive ? true : (i % 3 === 0 || i === route.points.length - 1)
-    )
-    .map((p: { lat: number; lng: number }) => [p.lat, p.lng]);
+  // Use all route points for maximum line quality.
+  const routeLatLngs: [number, number][] = route.points.map((p: { lat: number; lng: number }) => [p.lat, p.lng]);
 
   const traveledIndex = Math.floor(progress * (routeLatLngs.length - 1));
   const traveledLatLngs = routeLatLngs.slice(0, traveledIndex + 1);

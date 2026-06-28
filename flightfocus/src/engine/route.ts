@@ -12,7 +12,7 @@ export function generateRoute(
   departure: Place,
   arrival: Place,
   journeyType: JourneyType = 'fly',
-  numPoints: number = 200
+  numPoints?: number
 ): JourneyRoute {
   const distance = greatCircleDistance(
     departure.lat,
@@ -20,6 +20,10 @@ export function generateRoute(
     arrival.lat,
     arrival.lng
   );
+
+  // Scale vertex count with distance so longer routes stay smooth.
+  // ~1 point per 5km, clamped to 200–800.
+  const resolvedNumPoints = numPoints ?? Math.min(800, Math.max(200, Math.ceil(distance / 5)));
 
   const bearing = initialBearing(
     departure.lat,
@@ -32,8 +36,8 @@ export function generateRoute(
 
   const points: RoutePoint[] = [];
 
-  for (let i = 0; i <= numPoints; i++) {
-    const progress = i / numPoints;
+  for (let i = 0; i <= resolvedNumPoints; i++) {
+    const progress = i / resolvedNumPoints;
     const point = intermediatePoint(
       departure.lat,
       departure.lng,
@@ -45,13 +49,13 @@ export function generateRoute(
     const distanceFromStart = distance * progress;
 
     let pointBearing = bearing;
-    if (i < numPoints) {
+    if (i < resolvedNumPoints) {
       const nextPoint = intermediatePoint(
         departure.lat,
         departure.lng,
         arrival.lat,
         arrival.lng,
-        (i + 1) / numPoints
+        (i + 1) / resolvedNumPoints
       );
       pointBearing = initialBearing(point.lat, point.lng, nextPoint.lat, nextPoint.lng);
     }

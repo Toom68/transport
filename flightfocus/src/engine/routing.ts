@@ -44,8 +44,10 @@ export async function fetchDriveRoute(
     const rawCoords = route.geometry.coordinates;
     if (!rawCoords || rawCoords.length < 2) return null;
 
-    // Downsample to ~500 points to preserve road detail on winding routes
-    const maxPoints = 500;
+    // Downsample to preserve road detail on winding routes.
+    // Scale max points with distance: ~1 point per 2km, clamped 500–2000.
+    const distanceKm = route.distance / 1000;
+    const maxPoints = Math.min(2000, Math.max(500, Math.ceil(distanceKm / 2)));
     const step = Math.max(1, Math.ceil(rawCoords.length / maxPoints));
     const sampled: [number, number][] = [];
     for (let i = 0; i < rawCoords.length; i += step) {
@@ -56,7 +58,6 @@ export async function fetchDriveRoute(
       sampled.push(rawCoords[rawCoords.length - 1]);
     }
 
-    const distanceKm = route.distance / 1000;
     const durationSec = route.duration;
 
     // Build RoutePoints with progress, bearing, distanceFromStart
