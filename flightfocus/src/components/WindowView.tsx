@@ -68,23 +68,42 @@ export function WindowView() {
             <stop offset="100%" stopColor={mode === 'dark' ? '#020617' : '#c4b89e'} />
           </radialGradient>
           <radialGradient id="bezelGrad" cx="50%" cy="30%" r="80%">
-            <stop offset="0%" stopColor={mode === 'dark' ? '#475569' : '#b8ad94'} />
-            <stop offset="50%" stopColor={mode === 'dark' ? '#334155' : '#968b76'} />
-            <stop offset="100%" stopColor={mode === 'dark' ? '#1e293b' : '#6b6150'} />
+            <stop offset="0%" stopColor={mode === 'dark' ? '#a89e8a' : '#ffffff'} />
+            <stop offset="50%" stopColor={mode === 'dark' ? '#6b6353' : '#d4ccb8'} />
+            <stop offset="100%" stopColor={mode === 'dark' ? '#3d3528' : '#a89e8a'} />
           </radialGradient>
+          <linearGradient id="seatShadowTop" x1="50%" y1="0%" x2="50%" y2="100%">
+            <stop offset="0%" stopColor={mode === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.35)'} />
+            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+          </linearGradient>
+          <linearGradient id="seatShadowBottom" x1="50%" y1="100%" x2="50%" y2="0%">
+            <stop offset="0%" stopColor={mode === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.35)'} />
+            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+          </linearGradient>
+          <clipPath id="windowClip">
+            <ellipse cx="50%" cy="50%" rx="27%" ry="41%" />
+          </clipPath>
         </defs>
 
         {/* Wall fill with mask cutout */}
         <rect width="100%" height="100%" fill="url(#wallGrad)" mask="url(#ovalWindow)" />
 
+        {/* Seat shadows — clipped to window opening */}
+        <g clipPath="url(#windowClip)">
+          {/* Top: seat back/headrest shadow from the seat in front */}
+          <ellipse cx="50%" cy="8%" rx="35%" ry="20%" fill="url(#seatShadowTop)" />
+          {/* Bottom: armrest/seat base shadow */}
+          <ellipse cx="50%" cy="92%" rx="35%" ry="18%" fill="url(#seatShadowBottom)" />
+        </g>
+
         {/* Outer bezel — thick frame ring */}
         <ellipse cx="50%" cy="50%" rx="28%" ry="42%" fill="none" stroke="url(#bezelGrad)" strokeWidth="8" />
         {/* Mid bezel — subtle highlight on top edge */}
-        <ellipse cx="50%" cy="50%" rx="28%" ry="42%" fill="none" stroke={mode === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.5)'} strokeWidth="2" />
+        <ellipse cx="50%" cy="50%" rx="28%" ry="42%" fill="none" stroke={mode === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.7)'} strokeWidth="2" />
         {/* Inner edge — dark shadow for depth */}
         <ellipse cx="50%" cy="50%" rx="27%" ry="41%" fill="none" stroke={mode === 'dark' ? 'rgba(0,0,0,0.4)' : 'rgba(61,53,40,0.15)'} strokeWidth="3" />
         {/* Inner rim — faint light catch */}
-        <ellipse cx="50%" cy="50%" rx="26.5%" ry="40.5%" fill="none" stroke={mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.3)'} strokeWidth="1" />
+        <ellipse cx="50%" cy="50%" rx="26.5%" ry="40.5%" fill="none" stroke={mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.5)'} strokeWidth="1" />
       </svg>
 
       {/* Top-right: phase + biome + weather indicator */}
