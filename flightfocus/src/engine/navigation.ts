@@ -170,8 +170,9 @@ export function getAltitudeForProgress(progress: number): number {
   const cruiseAltitudeFt = 36000;
 
   if (progress <= 0) return 0;
-  // TAKEOFF: 0 -> 0.033, rapid climb 0 -> 10,000ft (steep)
-  if (progress < 0.033) return (progress / 0.033) * 10000;
+  // TAKEOFF: 0 -> 0.033, moderate climb 0 -> 10,000ft
+  // Power 0.9 curve: slightly front-loaded for a ~40° climb angle.
+  if (progress < 0.033) return Math.pow(progress / 0.033, 0.9) * 10000;
   // ENROUTE CLIMB: 0.033 -> 0.20, steady climb 10,000 -> 36,000ft
   if (progress < 0.20) return 10000 + ((progress - 0.033) / 0.167) * 26000;
   // CRUISE: 0.20 -> 0.80, flat at 36,000ft

@@ -102,6 +102,7 @@ export function MapboxView({
   const styleLoadedRef = useRef(false);
   const rafRef = useRef<number>(0);
   const smoothBearingRef = useRef(driveMode ? heading : heading - 90);
+  const smoothGroundElevRef = useRef(0);
   const preloadRef = useRef<{ lastPreload: number; preloaded: boolean }>({ lastPreload: 0, preloaded: false });
 
   // Target values updated every render — rAF loop reads these
@@ -352,7 +353,13 @@ export function MapboxView({
         const altMeters = Math.max(1, tgt.altitude * 0.3048);
 
         // Ground elevation at plane's position (from terrain DEM)
-        const groundElev = map.queryTerrainElevation([tgt.lng, tgt.lat]) ?? 0;
+        const rawGroundElev = map.queryTerrainElevation([tgt.lng, tgt.lat]) ?? 0;
+
+        // Smooth ground elevation so the plane doesn't bob with every terrain
+        // feature. A very low lerp factor keeps the camera steady while still
+        // gradually tracking large-scale elevation changes (e.g. mountains).
+        smoothGroundElevRef.current += (rawGroundElev - smoothGroundElevRef.current) * 0.02;
+        const groundElev = smoothGroundElevRef.current;
 
         // Camera position: at plane's lat/lng, at altitude above sea level
         const camAltMeters = groundElev + altMeters;

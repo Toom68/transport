@@ -32,21 +32,59 @@ export function SimulationView() {
   useEffect(() => {
     if (!isActive || isPaused) return;
 
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    // rAF loop — used while the tab is visible for smooth, high-FPS updates.
     const loop = (now: number) => {
       const delta = (now - lastTimeRef.current) / 1000;
       lastTimeRef.current = now;
-
       if (delta < 1) {
         tick(delta);
       }
-
       frameRef.current = requestAnimationFrame(loop);
     };
 
-    lastTimeRef.current = performance.now();
-    frameRef.current = requestAnimationFrame(loop);
+    // Interval loop — used while the tab is hidden so the sim keeps running.
+    // Browsers throttle background intervals to ~1s minimum, which is fine.
+    const intervalTick = () => {
+      const now = performance.now();
+      const delta = (now - lastTimeRef.current) / 1000;
+      lastTimeRef.current = now;
+      if (delta > 0 && delta < 10) {
+        tick(delta);
+      }
+    };
 
-    return () => cancelAnimationFrame(frameRef.current);
+    const startRaf = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+      lastTimeRef.current = performance.now();
+      frameRef.current = requestAnimationFrame(loop);
+    };
+
+    const startInterval = () => {
+      cancelAnimationFrame(frameRef.current);
+      lastTimeRef.current = performance.now();
+      intervalId = setInterval(intervalTick, 250);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) startInterval();
+      else startRaf();
+    };
+
+    if (document.hidden) startInterval();
+    else startRaf();
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      cancelAnimationFrame(frameRef.current);
+      if (intervalId) clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [isActive, isPaused, tick]);
 
   return (

@@ -13,8 +13,8 @@ export type FlightPhase = JourneyPhase;
  */
 // Ground durations per mode (in real seconds)
 export const GROUND_DURATIONS_FLY: Record<'BOARDING' | 'TAXI' | 'TAKEOFF', number> = {
-  BOARDING: 25,
-  TAXI: 30,
+  BOARDING: 0,
+  TAXI: 5,
   TAKEOFF: 15,
 };
 
