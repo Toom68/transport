@@ -8,95 +8,151 @@ interface StreetViewProps {
   isMoving: boolean;
 }
 
-interface SVImage {
-  url: string;
+interface CachedImage {
   id: string;
+  url: string;
+  lat: number;
+  lng: number;
   compassAngle: number;
+  isPano: boolean;
+  distance: number; // distance from car position when fetched
 }
 
-const FETCH_INTERVAL_MS = 2500;
-const RADIUS_M = 50;
-const SEARCH_LIMIT = 10;
-const HEADING_TOLERANCE = 60;
+const FETCH_BATCH_INTERVAL_MS = 4000; // re-fetch corridor every 4s
+const MIN_IMAGE_SWAP_MS = 800; // min time between image swaps
+const CORRIDOR_RADIUS_DEG = 0.005; // ~500m half-width bbox
+const SEARCH_LIMIT = 50; // grab more images per batch
+const HEADING_TOLERANCE = 90; // relaxed — accept more images
+const NEARBY_THRESHOLD_M = 80; // show image when car is within this distance
+
+// Haversine distance in meters
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function headingDiff(imgAngle: number, carHeading: number): number {
+  return Math.abs(((imgAngle - carHeading + 540) % 360) - 180);
+}
 
 export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetViewProps) {
-  const [current, setCurrent] = useState<SVImage | null>(null);
-  const [next, setNext] = useState<SVImage | null>(null);
+  const [current, setCurrent] = useState<CachedImage | null>(null);
+  const [next, setNext] = useState<CachedImage | null>(null);
   const [loading, setLoading] = useState(true);
   const [noCoverage, setNoCoverage] = useState(false);
-  const lastFetchRef = useRef(0);
-  const rafRef = useRef<number>(0);
-  const lastImageIdRef = useRef<string | null>(null);
+  const 
+    cacheRef = useRef<CachedImage[]>([]),
+    lastBatchFetchRef = useRef(0),
+    lastSwapRef = useRef(0),
+    rafRef = useRef<number>(0),
+    lastCarPosRef = useRef({ lat, lng }),
+    shownIdsRef = useRef<Set<string>>(new Set());
 
-  const fetchNearestImage = useCallback(async (svLat: number, svLng: number, svHeading: number): Promise<SVImage | null> => {
+  // Fetch a batch of images in a bounding box corridor ahead of the car
+  const fetchCorridor = useCallback(async (carLat: number, carLng: number, carHeading: number): Promise<CachedImage[]> => {
+    // Build a bounding box centered on the car, extended ahead in the direction of travel
+    const headingRad = carHeading * Math.PI / 180;
+    const aheadDist = CORRIDOR_RADIUS_DEG * 1.5;
+    const sideDist = CORRIDOR_RADIUS_DEG;
+
+    // Approximate offsets (good enough for small distances)
+    const latOffset = aheadDist * Math.cos(headingRad);
+    const lngOffset = aheadDist * Math.sin(headingRad) / Math.cos(carLat * Math.PI / 180);
+
+    const centerLat = carLat + latOffset;
+    const centerLng = carLng + lngOffset;
+
+    const minLat = Math.min(carLat, centerLat) - sideDist;
+    const maxLat = Math.max(carLat, centerLat) + sideDist;
+    const minLng = Math.min(carLng, centerLng) - sideDist;
+    const maxLng = Math.max(carLng, centerLng) + sideDist;
+
     const url = `https://graph.mapillary.com/images?access_token=${accessToken}` +
-      `&fields=id,compass_angle,thumb_2048_url,thumb_1024_url,is_pano` +
-      `&lat=${svLat}&lng=${svLng}&radius=${RADIUS_M}&limit=${SEARCH_LIMIT}`;
+      `&fields=id,compass_angle,thumb_2048_url,thumb_1024_url,is_pano,geometry` +
+      `&bbox=${minLng},${minLat},${maxLng},${maxLat}` +
+      `&limit=${SEARCH_LIMIT}`;
 
     try {
       const resp = await fetch(url);
-      if (!resp.ok) return null;
+      if (!resp.ok) return [];
       const data = await resp.json();
-      if (!data.data || data.data.length === 0) return null;
+      if (!data.data || data.data.length === 0) return [];
 
-      // Score each image: prefer ones facing the same direction as our heading,
-      // and prefer 360 panoramas (they work from any angle)
-      let best: typeof data.data[0] | null = null;
-      let bestScore = Infinity;
-
-      for (const img of data.data) {
-        if (!img.thumb_2048_url && !img.thumb_1024_url) continue;
-
-        let headingDiff: number;
-        if (img.is_pano) {
-          headingDiff = 0;
-        } else {
-          headingDiff = Math.abs(((img.compass_angle - svHeading + 540) % 360) - 180);
-        }
-
-        if (!img.is_pano && headingDiff > HEADING_TOLERANCE) continue;
-        if (img.id === lastImageIdRef.current) continue;
-
-        if (headingDiff < bestScore) {
-          bestScore = headingDiff;
-          best = img;
-        }
-      }
-
-      if (!best) {
-        for (const img of data.data) {
-          if (img.id === lastImageIdRef.current) continue;
-          if (img.thumb_2048_url || img.thumb_1024_url) {
-            best = img;
-            break;
-          }
-        }
-      }
-
-      if (!best) return null;
-
-      return {
-        id: best.id,
-        url: best.thumb_2048_url || best.thumb_1024_url,
-        compassAngle: best.compass_angle ?? 0,
-      };
+      return data.data
+        .filter((img: any) => img.thumb_2048_url || img.thumb_1024_url)
+        .map((img: any) => ({
+          id: img.id,
+          url: img.thumb_2048_url || img.thumb_1024_url,
+          lat: img.geometry?.coordinates?.[1] ?? carLat,
+          lng: img.geometry?.coordinates?.[0] ?? carLng,
+          compassAngle: img.compass_angle ?? 0,
+          isPano: img.is_pano ?? false,
+          distance: haversineMeters(carLat, carLng, img.geometry?.coordinates?.[1] ?? carLat, img.geometry?.coordinates?.[0] ?? carLng),
+        }))
+        .sort((a: CachedImage, b: CachedImage) => {
+          // Sort by distance from car, but prefer images facing the right direction
+          const aScore = a.distance + (a.isPano ? 0 : headingDiff(a.compassAngle, carHeading) * 2);
+          const bScore = b.distance + (b.isPano ? 0 : headingDiff(b.compassAngle, carHeading) * 2);
+          return aScore - bScore;
+        });
     } catch {
-      return null;
+      return [];
     }
   }, [accessToken]);
+
+  // Pick the best image from cache for the current car position
+  const pickBestFromCache = useCallback((carLat: number, carLng: number, carHeading: number): CachedImage | null => {
+    const cache = cacheRef.current;
+    if (cache.length === 0) return null;
+
+    let best: CachedImage | null = null;
+    let bestScore = Infinity;
+
+    for (const img of cache) {
+      if (shownIdsRef.current.has(img.id)) continue;
+
+      const dist = haversineMeters(carLat, carLng, img.lat, img.lng);
+      // Only consider images within a reasonable distance
+      if (dist > 300) continue;
+
+      const hDiff = img.isPano ? 0 : headingDiff(img.compassAngle, carHeading);
+      // Score: prefer closer images and ones facing the right direction
+      const score = dist + hDiff * 3;
+
+      if (score < bestScore) {
+        bestScore = score;
+        best = img;
+      }
+    }
+
+    // If all images in cache have been shown, reset and pick the closest
+    if (!best && cache.length > 0) {
+      shownIdsRef.current.clear();
+      best = cache[0];
+    }
+
+    return best;
+  }, []);
 
   // Initial fetch
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const result = await fetchNearestImage(lat, lng, heading);
+      const images = await fetchCorridor(lat, lng, heading);
       if (cancelled) return;
-      if (result) {
-        lastImageIdRef.current = result.id;
+      if (images.length > 0) {
+        cacheRef.current = images;
+        const best = images[0];
+        shownIdsRef.current.add(best.id);
         const img = new Image();
         img.onload = () => {
           if (cancelled) return;
-          setCurrent(result);
+          setCurrent(best);
           setLoading(false);
         };
         img.onerror = () => {
@@ -104,7 +160,7 @@ export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetV
           setNoCoverage(true);
           setLoading(false);
         };
-        img.src = result.url;
+        img.src = best.url;
       } else {
         setNoCoverage(true);
         setLoading(false);
@@ -113,33 +169,59 @@ export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetV
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Periodic fetch for new images as the car moves
+  // Main loop: fetch corridors + advance through cached images
   useEffect(() => {
     const tick = () => {
       const now = Date.now();
-      if (now - lastFetchRef.current >= FETCH_INTERVAL_MS && isMoving) {
-        lastFetchRef.current = now;
+
+      // Re-fetch corridor if cache is running low or enough time has passed
+      if (isMoving && now - lastBatchFetchRef.current >= FETCH_BATCH_INTERVAL_MS) {
+        lastBatchFetchRef.current = now;
         (async () => {
-          const result = await fetchNearestImage(lat, lng, heading);
-          if (!result) return;
-          const img = new Image();
-          img.onload = () => {
-            setNext(result);
-          };
-          img.src = result.url;
+          const images = await fetchCorridor(lat, lng, heading);
+          if (images.length > 0) {
+            // Merge new images into cache, avoiding duplicates
+            const existingIds = new Set(cacheRef.current.map(i => i.id));
+            const newOnes = images.filter(i => !existingIds.has(i.id));
+            cacheRef.current = [...cacheRef.current, ...newOnes].slice(0, 100);
+          }
         })();
       }
+
+      // Check if we should advance to the next image
+      if (isMoving && !next && now - lastSwapRef.current >= MIN_IMAGE_SWAP_MS) {
+        const best = pickBestFromCache(lat, lng, heading);
+        if (best && best.id !== current?.id) {
+          lastSwapRef.current = now;
+          shownIdsRef.current.add(best.id);
+          const img = new Image();
+          img.onload = () => {
+            setNext(best);
+          };
+          img.src = best.url;
+        }
+      }
+
+      // If not moving and no image, try to show one
+      if (!isMoving && !current && cacheRef.current.length > 0) {
+        const best = cacheRef.current[0];
+        shownIdsRef.current.add(best.id);
+        const img = new Image();
+        img.onload = () => setCurrent(best);
+        img.src = best.url;
+      }
+
+      lastCarPosRef.current = { lat, lng };
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [lat, lng, heading, isMoving, fetchNearestImage]);
+  }, [lat, lng, heading, isMoving, current, next, fetchCorridor, pickBestFromCache]);
 
   // Crossfade: when next image is preloaded, swap it in
   useEffect(() => {
     if (!next) return;
     const timer = setTimeout(() => {
-      lastImageIdRef.current = next.id;
       setCurrent(next);
       setNext(null);
     }, 100);
@@ -164,7 +246,7 @@ export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetV
           <svg className="w-10 h-10 text-theme-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5l9-4.5 9 4.5M3 7.5v9l9 4.5 9-4.5v-9M3 7.5L12 12m0 0l9-4.5M12 12v9.5" />
           </svg>
-          <p className="text-xs text-theme-muted">No street view coverage at this location</p>
+          <p className="text-xs text-theme-muted">No street view coverage along this route</p>
           <p className="text-[10px] text-theme-muted/60">Try switching to Windshield view</p>
         </div>
       </div>
@@ -175,10 +257,10 @@ export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetV
     <div className="absolute inset-0 overflow-hidden bg-black">
       {current && (
         <img
-          key={current.url}
+          key={current.id}
           src={current.url}
           alt="Street view"
-          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out"
+          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in-out"
           style={{ opacity: next ? 0 : 1 }}
         />
       )}
@@ -186,7 +268,7 @@ export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetV
         <img
           src={next.url}
           alt="Street view loading"
-          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out"
+          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in-out"
           style={{ opacity: 1 }}
         />
       )}
