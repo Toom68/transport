@@ -13,11 +13,26 @@ interface StreetViewProps {
 
 const SEARCH_LIMIT = 50;
 const MIN_MOVE_MS = 2000;
-const MIN_DIST_M = 30; // min distance car must travel before re-searching
+const MIN_DIST_M = 30;
 const GOOGLE_FETCH_MS = 3000;
 const GOOGLE_IMG_SIZE = 640;
-const MAX_MAPILLARY_DIST_M = 100; // if nearest image is farther than this, fall back to Google
-const SEARCH_RADII = [25, 50, 100]; // tiered search: try small radius first
+const MAX_MAPILLARY_DIST_M = 100;
+const SEARCH_RADII = [15, 30, 60, 120]; // tiered: start tight, expand only if nothing found
+const MAX_CROSS_TRACK_M = 15; // max perpendicular distance from car's heading line — rejects images on parallel roads
+
+// Decompose distance into along-track (forward/back) and cross-track (left/right) relative to heading
+function crossTrackDistance(carLat: number, carLng: number, imgLat: number, imgLng: number, headingDeg: number): { along: number; cross: number; total: number } {
+  const latM = 111320;
+  const lngM = 111320 * Math.cos(carLat * Math.PI / 180);
+  const dx = (imgLng - carLng) * lngM; // east in meters
+  const dy = (imgLat - carLat) * latM; // north in meters
+  const h = headingDeg * Math.PI / 180;
+  // Along-track: positive = ahead, negative = behind
+  const along = dx * Math.sin(h) + dy * Math.cos(h);
+  // Cross-track: positive = right, negative = left
+  const cross = dx * Math.cos(h) - dy * Math.sin(h);
+  return { along, cross: Math.abs(cross), total: Math.sqrt(dx * dx + dy * dy) };
+}
 
 type Provider = 'mapillary' | 'google' | 'none';
 
@@ -72,7 +87,9 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
   isMovingRef.current = isMoving;
   providerRef.current = provider;
 
-  // Find nearest image ID via Mapillary API — tiered search from small to large radius
+  // Find nearest image ID via Mapillary API — tiered search with cross-track filtering
+  // Cross-track distance = how far the image is perpendicular to the car's heading.
+  // This prevents picking images from parallel roads in dense cities.
   const findNearestImageId = useCallback(async (carLat: number, carLng: number, carHeading: number): Promise<{ id: string; lat: number; lng: number; dist: number } | null> => {
     for (const radius of SEARCH_RADII) {
       const url = `https://graph.mapillary.com/images?access_token=${accessToken}` +
@@ -84,30 +101,47 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
         if (resp.ok) {
           const data = await resp.json();
           if (data.data && data.data.length > 0) {
-            let best: any = null;
-            let bestScore = Infinity;
-            let bestDist = Infinity;
+            // Phase 1: filter to images on the same road (low cross-track distance)
+            let candidates: Array<{ img: any; track: { along: number; cross: number; total: number } }> = [];
             for (const img of data.data) {
               const imgLat = img.geometry?.coordinates?.[1] ?? carLat;
               const imgLng = img.geometry?.coordinates?.[0] ?? carLng;
-              const dist = haversineMeters(carLat, carLng, imgLat, imgLng);
+              const track = crossTrackDistance(carLat, carLng, imgLat, imgLng, carHeading);
+              candidates.push({ img, track });
+            }
+
+            // Sort by cross-track (lateral) distance — prefer images directly on our line
+            candidates.sort((a, b) => a.track.cross - b.track.cross);
+
+            // Phase 2: among images with low cross-track, pick the closest by total distance
+            // with a mild heading preference
+            const onRoad = candidates.filter(c => c.track.cross <= MAX_CROSS_TRACK_M);
+            const pool = onRoad.length > 0 ? onRoad : candidates;
+
+            let best: any = null;
+            let bestScore = Infinity;
+            let bestDist = Infinity;
+            for (const { img, track } of pool) {
               const hDiff = img.is_pano ? 0 : headingDiff(img.compass_angle ?? 0, carHeading);
-              // Distance is the primary factor — heading is a tiebreaker
-              // Penalize heading mismatch more at close range to avoid picking wrong-road images
-              const score = dist + hDiff * 0.5;
+              // Primary: total distance. Secondary: heading alignment.
+              const score = track.total + hDiff * 0.3;
               if (score < bestScore) {
                 bestScore = score;
-                bestDist = dist;
+                bestDist = track.total;
                 best = img;
               }
             }
+
             if (best) {
-              return {
-                id: best.id,
-                lat: best.geometry?.coordinates?.[1] ?? carLat,
-                lng: best.geometry?.coordinates?.[0] ?? carLng,
-                dist: bestDist,
-              };
+              // Only return if within max distance AND (on-road OR no better radius will help)
+              if (bestDist <= MAX_MAPILLARY_DIST_M) {
+                return {
+                  id: best.id,
+                  lat: best.geometry?.coordinates?.[1] ?? carLat,
+                  lng: best.geometry?.coordinates?.[0] ?? carLng,
+                  dist: bestDist,
+                };
+              }
             }
           }
         }
