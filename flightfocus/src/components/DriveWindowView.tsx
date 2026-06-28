@@ -13,6 +13,7 @@ import type { JourneyPhase } from '@/types/journey';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 const MAPILLARY_TOKEN = import.meta.env.VITE_MAPILLARY_TOKEN ?? '';
+const GOOGLE_STREETVIEW_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '';
 
 type ViewMode = 'windshield' | 'chase' | 'passenger';
 
@@ -71,12 +72,13 @@ export function DriveWindowView() {
 
   return (
     <div className="relative w-full h-full rounded-2xl overflow-hidden bg-theme-dim border border-theme-border select-none">
-      {viewMode === 'passenger' && MAPILLARY_TOKEN ? (
+      {viewMode === 'passenger' && (MAPILLARY_TOKEN || GOOGLE_STREETVIEW_KEY) ? (
         <StreetView
           lat={position.lat}
           lng={position.lng}
           heading={position.heading}
           accessToken={MAPILLARY_TOKEN}
+          googleApiKey={GOOGLE_STREETVIEW_KEY || undefined}
           isMoving={isMoving}
         />
       ) : viewMode === 'chase' ? (
@@ -123,7 +125,7 @@ export function DriveWindowView() {
 
       {/* View mode toggle — cycle through available views */}
       <div className="absolute top-3 left-3 z-10 flex items-center gap-1">
-        {(['windshield', 'chase', ...(MAPILLARY_TOKEN ? ['passenger'] : [])] as ViewMode[]).map((mode) => (
+        {(['windshield', 'chase', ...((MAPILLARY_TOKEN || GOOGLE_STREETVIEW_KEY) ? ['passenger'] : [])] as ViewMode[]).map((mode) => (
           <button
             key={mode}
             onClick={() => setViewMode(mode)}

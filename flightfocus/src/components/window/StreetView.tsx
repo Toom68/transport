@@ -7,13 +7,23 @@ interface StreetViewProps {
   lng: number;
   heading: number;
   accessToken: string;
+  googleApiKey?: string;
   isMoving: boolean;
 }
 
-const FETCH_INTERVAL_MS = 3000;
-const CORRIDOR_RADIUS_DEG = 0.004; // ~400m half-width
+const CORRIDOR_RADIUS_DEG = 0.004;
 const SEARCH_LIMIT = 50;
-const MIN_MOVE_MS = 1500; // min time between viewer moves
+const MIN_MOVE_MS = 1500;
+const GOOGLE_FETCH_MS = 3000;
+const GOOGLE_IMG_SIZE = 640;
+
+type Provider = 'mapillary' | 'google' | 'none';
+
+interface GoogleImg {
+  url: string;
+  lat: number;
+  lng: number;
+}
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -26,25 +36,27 @@ function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number)
 }
 
 function headingDiff(imgAngle: number, carHeading: number): number {
-  // compass_angle is the direction the camera was facing.
-  // We want images facing the same direction the car is traveling.
-  // Flip by 180 because Mapillary camera convention may be opposite to travel direction.
   const effectiveHeading = (carHeading + 180) % 360;
   return Math.abs(((imgAngle - effectiveHeading + 540) % 360) - 180);
 }
 
-export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetViewProps) {
+export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMoving }: StreetViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const currentImageIdRef = useRef<string | null>(null);
   const lastMoveRef = useRef(0);
   const rafRef = useRef<number>(0);
   const [loading, setLoading] = useState(true);
-  const [noCoverage, setNoCoverage] = useState(false);
+  const [provider, setProvider] = useState<Provider>('mapillary');
+
+  // Google fallback state
+  const [googleCurrent, setGoogleCurrent] = useState<GoogleImg | null>(null);
+  const [googleNext, setGoogleNext] = useState<GoogleImg | null>(null);
+  const googleLastFetchRef = useRef(0);
+  const googleLastUrlRef = useRef<string | null>(null);
 
   // Find nearest image ID via Mapillary API
   const findNearestImageId = useCallback(async (carLat: number, carLng: number, carHeading: number): Promise<string | null> => {
-    // Try radius search first (most accurate)
     const radiusUrl = `https://graph.mapillary.com/images?access_token=${accessToken}` +
       `&fields=id,compass_angle,is_pano,geometry,sequence` +
       `&lat=${carLat}&lng=${carLng}&radius=50&limit=20`;
@@ -54,12 +66,10 @@ export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetV
       if (resp.ok) {
         const data = await resp.json();
         if (data.data && data.data.length > 0) {
-          // Pick best by heading match
           let best: any = null;
           let bestScore = Infinity;
           for (const img of data.data) {
             const hDiff = img.is_pano ? 0 : headingDiff(img.compass_angle ?? 0, carHeading);
-            // Also factor in distance — prefer closer images
             const imgLat = img.geometry?.coordinates?.[1] ?? carLat;
             const imgLng = img.geometry?.coordinates?.[0] ?? carLng;
             const dist = haversineMeters(carLat, carLng, imgLat, imgLng);
@@ -86,7 +96,6 @@ export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetV
       if (resp.ok) {
         const data = await resp.json();
         if (data.data && data.data.length > 0) {
-          // Find closest by distance
           let best: any = null;
           let bestDist = Infinity;
           for (const img of data.data) {
@@ -108,33 +117,71 @@ export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetV
     return null;
   }, [accessToken]);
 
-  // Initialize MapillaryJS viewer
-  useEffect(() => {
-    if (!containerRef.current) return;
+  // Fetch Google Street View static image
+  const fetchGoogleStreetView = useCallback(async (svLat: number, svLng: number, svHeading: number): Promise<GoogleImg | null> => {
+    if (!googleApiKey) return null;
+    // Check metadata first (free, unlimited)
+    const metaUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${svLat},${svLng}&radius=50&key=${googleApiKey}`;
+    try {
+      const resp = await fetch(metaUrl);
+      const data = await resp.json();
+      if (data.status !== 'OK') return null;
+      const panoLat = data.location?.lat ?? svLat;
+      const panoLng = data.location?.lng ?? svLng;
+      const imgUrl = `https://maps.googleapis.com/maps/api/streetview?size=${GOOGLE_IMG_SIZE}x${GOOGLE_IMG_SIZE}&location=${panoLat},${panoLng}&heading=${svHeading.toFixed(0)}&pitch=-5&fov=90&key=${googleApiKey}`;
+      return { url: imgUrl, lat: panoLat, lng: panoLng };
+    } catch {
+      return null;
+    }
+  }, [googleApiKey]);
 
+  // Initialize: try Mapillary first, fall back to Google
+  useEffect(() => {
     let cancelled = false;
 
     (async () => {
       const imageId = await findNearestImageId(lat, lng, heading);
-      if (cancelled || !imageId) {
-        setNoCoverage(true);
+      if (cancelled) return;
+
+      if (imageId && containerRef.current) {
+        // Mapillary has coverage — use WebGL viewer
+        setProvider('mapillary');
+        const viewer = new Viewer({
+          accessToken,
+          container: containerRef.current!,
+          imageId,
+          component: { cover: false },
+        });
+        viewerRef.current = viewer;
+        currentImageIdRef.current = imageId;
+        viewer.on('image', () => setLoading(false));
+      } else if (googleApiKey) {
+        // No Mapillary coverage — try Google
+        const result = await fetchGoogleStreetView(lat, lng, heading);
+        if (cancelled) return;
+        if (result) {
+          setProvider('google');
+          const img = new Image();
+          img.onload = () => {
+            if (cancelled) return;
+            googleLastUrlRef.current = result.url;
+            setGoogleCurrent(result);
+            setLoading(false);
+          };
+          img.onerror = () => {
+            if (cancelled) return;
+            setProvider('none');
+            setLoading(false);
+          };
+          img.src = result.url;
+        } else {
+          setProvider('none');
+          setLoading(false);
+        }
+      } else {
+        setProvider('none');
         setLoading(false);
-        return;
       }
-
-      const viewer = new Viewer({
-        accessToken,
-        container: containerRef.current!,
-        imageId,
-        component: { cover: false },
-      });
-
-      viewerRef.current = viewer;
-      currentImageIdRef.current = imageId;
-
-      viewer.on('image', () => {
-        setLoading(false);
-      });
     })();
 
     return () => {
@@ -146,32 +193,53 @@ export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetV
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Main loop: find nearest image and move viewer to it as car moves
+  // Main loop: advance street view as car moves
   useEffect(() => {
     const tick = () => {
       const now = Date.now();
 
-      if (isMoving && viewerRef.current && now - lastMoveRef.current >= MIN_MOVE_MS) {
+      if (isMoving && now - lastMoveRef.current >= MIN_MOVE_MS) {
         lastMoveRef.current = now;
-        (async () => {
-          const imageId = await findNearestImageId(lat, lng, heading);
-          if (!imageId || imageId === currentImageIdRef.current) return;
 
-          // Smoothly move to the new image
-          try {
-            await viewerRef.current?.moveTo(imageId);
-            currentImageIdRef.current = imageId;
-          } catch {}
-        })();
+        if (provider === 'mapillary' && viewerRef.current) {
+          (async () => {
+            const imageId = await findNearestImageId(lat, lng, heading);
+            if (!imageId || imageId === currentImageIdRef.current) return;
+            try {
+              await viewerRef.current?.moveTo(imageId);
+              currentImageIdRef.current = imageId;
+            } catch {}
+          })();
+        } else if (provider === 'google' && googleApiKey && now - googleLastFetchRef.current >= GOOGLE_FETCH_MS) {
+          googleLastFetchRef.current = now;
+          (async () => {
+            const result = await fetchGoogleStreetView(lat, lng, heading);
+            if (!result || result.url === googleLastUrlRef.current) return;
+            const img = new Image();
+            img.onload = () => setGoogleNext(result);
+            img.src = result.url;
+          })();
+        }
       }
 
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [lat, lng, heading, isMoving, findNearestImageId]);
+  }, [lat, lng, heading, isMoving, provider, googleApiKey, findNearestImageId, fetchGoogleStreetView]);
 
-  if (noCoverage) {
+  // Google crossfade
+  useEffect(() => {
+    if (!googleNext) return;
+    const timer = setTimeout(() => {
+      googleLastUrlRef.current = googleNext.url;
+      setGoogleCurrent(googleNext);
+      setGoogleNext(null);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [googleNext]);
+
+  if (provider === 'none') {
     return (
       <div className="absolute inset-0 flex items-center justify-center bg-theme-dim">
         <div className="flex flex-col items-center gap-2 text-center px-6">
@@ -187,7 +255,30 @@ export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetV
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-black">
-      <div ref={containerRef} className="absolute inset-0 w-full h-full" />
+      {/* Mapillary WebGL viewer */}
+      {provider === 'mapillary' && (
+        <div ref={containerRef} className="absolute inset-0 w-full h-full" />
+      )}
+
+      {/* Google Street View static images */}
+      {provider === 'google' && googleCurrent && (
+        <img
+          key={googleCurrent.url}
+          src={googleCurrent.url}
+          alt="Street view"
+          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in-out"
+          style={{ opacity: googleNext ? 0 : 1 }}
+        />
+      )}
+      {provider === 'google' && googleNext && (
+        <img
+          src={googleNext.url}
+          alt="Street view loading"
+          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in-out"
+          style={{ opacity: 1 }}
+        />
+      )}
+
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-theme-dim z-20">
           <div className="flex flex-col items-center gap-3">
@@ -196,9 +287,12 @@ export function StreetView({ lat, lng, heading, accessToken, isMoving }: StreetV
           </div>
         </div>
       )}
-      {/* Mapillary attribution — required by terms */}
+
+      {/* Attribution */}
       <div className="absolute bottom-1 right-1 pointer-events-none z-10">
-        <span className="text-[8px] text-white/40">© Mapillary</span>
+        <span className="text-[8px] text-white/40">
+          {provider === 'mapillary' ? '© Mapillary' : provider === 'google' ? '© Google' : ''}
+        </span>
       </div>
     </div>
   );
