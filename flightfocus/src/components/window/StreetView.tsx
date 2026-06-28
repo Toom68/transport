@@ -36,8 +36,7 @@ function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number)
 }
 
 function headingDiff(imgAngle: number, carHeading: number): number {
-  const effectiveHeading = (carHeading + 180) % 360;
-  return Math.abs(((imgAngle - effectiveHeading + 540) % 360) - 180);
+  return Math.abs(((imgAngle - carHeading + 540) % 360) - 180);
 }
 
 export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMoving }: StreetViewProps) {
