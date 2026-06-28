@@ -91,7 +91,7 @@ export default function App() {
       {/* Theme toggle */}
       <button
         onClick={toggle}
-        className="fixed bottom-4 left-4 z-[60] w-10 h-10 rounded-full glass-panel flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+        className="fixed bottom-16 right-3 z-[60] w-10 h-10 rounded-full glass-panel flex items-center justify-center transition-all hover:scale-110 active:scale-95"
         aria-label="Toggle theme"
       >
         {mode === 'dark' ? (
