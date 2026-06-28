@@ -145,6 +145,16 @@ export const AUDIO_PRESETS: Record<Exclude<AudioPreset, 'auto'>, PresetConfig> =
       tireHum: { volume: 0.15, muted: false },
     },
   },
+  cityTraffic: {
+    label: 'City Traffic',
+    icon: 'Car',
+    channels: {
+      carEngine: { volume: 0.4, muted: false },
+      roadNoise: { volume: 0.3, muted: false },
+      tireHum: { volume: 0.2, muted: false },
+      trafficPass: { volume: 0.35, muted: false },
+    },
+  },
 };
 
 interface AudioStore {

@@ -50,6 +50,7 @@ export function DriveScene({ speed, progress, phase, solarData }: DriveSceneProp
   const sunAlt = solarData?.altitude ?? 0;
   const colors = getSkyColors(sunAlt);
   const isMoving = phase === 'DRIVING' || phase === 'DEPARTING' || phase === 'ARRIVING';
+  const isLowSun = sunAlt > -6 && sunAlt < 15;
 
   // Scroll offset for road animation — accumulates based on speed
   const scrollRef = useRef(0);
@@ -77,6 +78,16 @@ export function DriveScene({ speed, progress, phase, solarData }: DriveSceneProp
   const dashSpacing = 40; // px between dashes
   const dashOffset = scroll % dashSpacing;
 
+  // Speed-based sway: subtle horizontal shift at high speed
+  const swayAmount = Math.min(2, speed / 80);
+  const sway = isMoving ? Math.sin(scroll * 0.02) * swayAmount : 0;
+  const roadCenter = roadVanishingX + sway;
+
+  // Roadside poles: spaced every 200px, scroll with road
+  const poleSpacing = 200;
+  const poleOffset = scroll % poleSpacing;
+  const poleCount = 6;
+
   return (
     <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
       <defs>
@@ -94,6 +105,17 @@ export function DriveScene({ speed, progress, phase, solarData }: DriveSceneProp
       {/* Sky */}
       <rect x="0" y="0" width="100%" height={`${horizonY}%`} fill="url(#driveSky)" />
 
+      {/* Sun disc near horizon during sunrise/sunset */}
+      {isLowSun && sunAlt > 0 && (
+        <circle
+          cx={`${roadCenter + 15}%`}
+          cy={`${horizonY - sunAlt * 0.5}%`}
+          r="3%"
+          fill="#ffd9a0"
+          opacity="0.6"
+        />
+      )}
+
       {/* Ground */}
       <rect x="0" y={`${horizonY}%`} width="100%" height={`${100 - horizonY}%`} fill="url(#driveGround)" />
 
@@ -104,21 +126,61 @@ export function DriveScene({ speed, progress, phase, solarData }: DriveSceneProp
         opacity="0.5"
       />
 
+      {/* Roadside poles — left side */}
+      {isMoving && Array.from({ length: poleCount }).map((_, i) => {
+        const t = (i * poleSpacing + poleOffset) / 1200;
+        if (t < 0 || t > 1) return null;
+        const y = horizonY + t * (100 - horizonY);
+        const xLeft = roadCenter - 8 - t * 20;
+        const poleHeight = 3 + t * 15;
+        return (
+          <rect
+            key={`pole-l-${i}`}
+            x={`${xLeft}%`}
+            y={`${y - poleHeight}%`}
+            width={`${0.5 + t * 1}%`}
+            height={`${poleHeight}%`}
+            fill="#2a2a2a"
+            opacity={0.3 + t * 0.4}
+          />
+        );
+      })}
+
+      {/* Roadside poles — right side */}
+      {isMoving && Array.from({ length: poleCount }).map((_, i) => {
+        const t = (i * poleSpacing + poleOffset) / 1200;
+        if (t < 0 || t > 1) return null;
+        const y = horizonY + t * (100 - horizonY);
+        const xRight = roadCenter + 8 + t * 20;
+        const poleHeight = 3 + t * 15;
+        return (
+          <rect
+            key={`pole-r-${i}`}
+            x={`${xRight}%`}
+            y={`${y - poleHeight}%`}
+            width={`${0.5 + t * 1}%`}
+            height={`${poleHeight}%`}
+            fill="#2a2a2a"
+            opacity={0.3 + t * 0.4}
+          />
+        );
+      })}
+
       {/* Road — trapezoid from vanishing point to bottom */}
       <polygon
-        points={`${roadVanishingX - 2},${horizonY} ${roadVanishingX + 2},${horizonY} 65%,100% 35%,100%`}
+        points={`${roadCenter - 2},${horizonY} ${roadCenter + 2},${horizonY} ${roadCenter + 15}%,100% ${roadCenter - 15}%,100%`}
         fill="#3a3a3a"
       />
 
       {/* Road edges — white lines */}
       <line
-        x1={`${roadVanishingX - 2}%`} y1={`${horizonY}%`}
-        x2="35%" y2="100%"
+        x1={`${roadCenter - 2}%`} y1={`${horizonY}%`}
+        x2={`${roadCenter - 15}%`} y2="100%"
         stroke="#ddd" strokeWidth="1.5" opacity="0.7"
       />
       <line
-        x1={`${roadVanishingX + 2}%`} y1={`${horizonY}%`}
-        x2="65%" y2="100%"
+        x1={`${roadCenter + 2}%`} y1={`${horizonY}%`}
+        x2={`${roadCenter + 15}%`} y2="100%"
         stroke="#ddd" strokeWidth="1.5" opacity="0.7"
       />
 
@@ -128,7 +190,7 @@ export function DriveScene({ speed, progress, phase, solarData }: DriveSceneProp
         if (t < 0 || t > 1) return null;
         // Perspective: dashes get smaller and closer to center as they approach horizon
         const y = horizonY + t * (100 - horizonY);
-        const xCenter = roadVanishingX;
+        const xCenter = roadCenter;
         const width = 1 + t * 8;
         const dashLen = 2 + t * 12;
         return (
@@ -146,8 +208,8 @@ export function DriveScene({ speed, progress, phase, solarData }: DriveSceneProp
       {/* Static center line when not moving */}
       {!isMoving && (
         <line
-          x1={`${roadVanishingX}%`} y1={`${horizonY}%`}
-          x2={`${roadVanishingX}%`} y2="100%"
+          x1={`${roadCenter}%`} y1={`${horizonY}%`}
+          x2={`${roadCenter}%`} y2="100%"
           stroke="#fff" strokeWidth="1" strokeDasharray="8,8" opacity="0.3"
         />
       )}

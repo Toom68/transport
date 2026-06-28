@@ -24,9 +24,9 @@ const PHASE_AUTO: Record<JourneyPhase, AutoMap> = {
   DESCENT: { boarding: 0, engine: 0.4, hvac: 0.35, cabin: 0.25, wind: 0.3, pressure: 0.4 },
   APPROACH: { boarding: 0, engine: 0.45, hvac: 0.3, cabin: 0.2, wind: 0.15, pressure: 0.2 },
   LANDING: { boarding: 0, engine: 0.55, hvac: 0.25, cabin: 0.15, wind: 0.1, pressure: 0 },
-  DEPARTING: { boarding: 0.3, engine: 0.2, hvac: 0.2, cabin: 0.15, wind: 0.1, pressure: 0, carEngine: 0.4, roadNoise: 0.2, tireHum: 0.15, windDrive: 0.1 },
-  DRIVING: { boarding: 0, engine: 0.5, hvac: 0.3, cabin: 0.2, wind: 0.3, pressure: 0, carEngine: 0.55, roadNoise: 0.4, tireHum: 0.3, windDrive: 0.25, trafficPass: 0.15 },
-  ARRIVING: { boarding: 0, engine: 0.35, hvac: 0.25, cabin: 0.2, wind: 0.15, pressure: 0, carEngine: 0.3, roadNoise: 0.2, tireHum: 0.15, windDrive: 0.1 },
+  DEPARTING: { boarding: 0, engine: 0, hvac: 0, cabin: 0, wind: 0, pressure: 0, carEngine: 0.4, roadNoise: 0.2, tireHum: 0.15, windDrive: 0.1 },
+  DRIVING: { boarding: 0, engine: 0, hvac: 0, cabin: 0, wind: 0, pressure: 0, carEngine: 0.55, roadNoise: 0.4, tireHum: 0.3, windDrive: 0.25, trafficPass: 0.15 },
+  ARRIVING: { boarding: 0, engine: 0, hvac: 0, cabin: 0, wind: 0, pressure: 0, carEngine: 0.3, roadNoise: 0.2, tireHum: 0.15, windDrive: 0.1 },
   SAILING: { boarding: 0, engine: 0.3, hvac: 0.25, cabin: 0.2, wind: 0.4, pressure: 0 },
   DOCKING: { boarding: 0.1, engine: 0.2, hvac: 0.2, cabin: 0.15, wind: 0.2, pressure: 0 },
   ARRIVED: { boarding: 0.4, engine: 0.08, hvac: 0.15, cabin: 0.2, wind: 0, pressure: 0 },
@@ -47,6 +47,7 @@ const PRESET_ICONS: Record<AudioPreset, typeof Sparkles> = {
   silent: VolumeX,
   roadTrip: Car,
   nightDrive: Moon,
+  cityTraffic: Car,
 };
 
 const GROUPS: { label: string; category: AudioChannel['category'] }[] = [
@@ -61,7 +62,7 @@ export function AudioMixer() {
     channels, masterVolume, isInitialized, activePreset,
     setMasterVolume, setChannelVolume, toggleChannelMute, setInitialized, setPreset,
   } = useAudioStore();
-  const { phase, isActive, journeyType } = useFlightStore();
+  const { phase, isActive, journeyType, position } = useFlightStore();
   const { mode } = useThemeStore();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -153,6 +154,15 @@ export function AudioMixer() {
     return () => clearTimeout(timer);
   }, [isInitialized]);
 
+  // Speed-based engine filter modulation for drive mode.
+  // Maps speed (0–130 km/h) to filter cutoff (80–200 Hz) for a revving feel.
+  useEffect(() => {
+    if (!isInitialized || journeyType !== 'drive') return;
+    const speedClamped = Math.min(130, Math.max(0, position.speed));
+    const filterFreq = 80 + (speedClamped / 130) * 120;
+    audioEngine.setChannelFilter('carEngine', filterFreq);
+  }, [isInitialized, journeyType, position.speed]);
+
   // Push channel volumes / mutes to the engine whenever they change.
   useEffect(() => {
     if (!isInitialized) return;
@@ -195,7 +205,7 @@ export function AudioMixer() {
 
   // Journey-type-aware preset list
   const presetList: AudioPreset[] = journeyType === 'drive'
-    ? ['auto', 'roadTrip', 'nightDrive', 'stormy', 'silent']
+    ? ['auto', 'roadTrip', 'nightDrive', 'cityTraffic', 'stormy', 'silent']
     : ['auto', 'focus', 'night', 'stormy', 'takeoff', 'silent'];
 
   return (

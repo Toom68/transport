@@ -30,4 +30,4 @@ export interface TimerConfig {
 
 export type ViewMode = 'home' | 'grounded' | 'simulation' | 'fullscreen';
 
-export type AudioPreset = 'auto' | 'focus' | 'night' | 'stormy' | 'takeoff' | 'silent' | 'roadTrip' | 'nightDrive';
+export type AudioPreset = 'auto' | 'focus' | 'night' | 'stormy' | 'takeoff' | 'silent' | 'roadTrip' | 'nightDrive' | 'cityTraffic';

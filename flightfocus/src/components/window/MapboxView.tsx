@@ -13,6 +13,7 @@ interface MapboxViewProps {
   phase: string;
   mapboxToken: string;
   solarData?: SolarData;
+  driveMode?: boolean;
 }
 
 // Fixed zoom — no changes during flight to avoid jank
@@ -94,17 +95,18 @@ export function MapboxView({
   phase,
   mapboxToken,
   solarData,
+  driveMode = false,
 }: MapboxViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const styleLoadedRef = useRef(false);
   const rafRef = useRef<number>(0);
-  const smoothBearingRef = useRef(heading - 90);
+  const smoothBearingRef = useRef(driveMode ? heading : heading - 90);
   const preloadRef = useRef<{ lastPreload: number; preloaded: boolean }>({ lastPreload: 0, preloaded: false });
 
   // Target values updated every render — rAF loop reads these
-  const targetRef = useRef({ lat, lng, altitude, heading, phase });
-  targetRef.current = { lat, lng, altitude, heading, phase };
+  const targetRef = useRef({ lat, lng, altitude, heading, phase, driveMode });
+  targetRef.current = { lat, lng, altitude, heading, phase, driveMode };
 
   // Initialize map once
   useEffect(() => {
@@ -112,19 +114,22 @@ export function MapboxView({
 
     mapboxgl.accessToken = mapboxToken;
 
+    const driveZoom = 15;
+    const drivePitch = 80; // Looking forward along the road, slightly down
+
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: 'mapbox://styles/mapbox/satellite-streets-v12',
       center: [lng, lat],
-      zoom: FIXED_ZOOM,
-      pitch: altitudeToPitch(altitude),
-      bearing: heading - 90, // Left window: perpendicular to travel direction
+      zoom: driveMode ? driveZoom : FIXED_ZOOM,
+      pitch: driveMode ? drivePitch : altitudeToPitch(altitude),
+      bearing: driveMode ? heading : heading - 90, // Drive: forward; Flight: left window perpendicular
       interactive: false,
       attributionControl: false,
       antialias: true,
       maxPitch: 85,
-      maxTileCacheSize: 500, // cache more tiles for smoother panning
-      fadeDuration: 0, // instant tile fade-in, no blur during transitions
+      maxTileCacheSize: 500,
+      fadeDuration: 0,
     });
 
     mapRef.current = map;
@@ -132,12 +137,22 @@ export function MapboxView({
     map.on('style.load', () => {
       styleLoadedRef.current = true;
 
-      // Remove all vector overlay layers (labels, roads, boundaries) for pure satellite view
+      // Remove vector overlay layers for pure satellite view.
+      // In drive mode, keep road labels and route shields for orientation.
       try {
         const layers = map.getStyle().layers;
         for (const layer of layers) {
-          if (layer.type === 'symbol' || layer.type === 'line' || (layer.type === 'fill-extrusion' && layer.id !== '3d-buildings') || (layer.type === 'fill' && layer.source !== 'composite')) {
-            map.removeLayer(layer.id);
+          if (driveMode) {
+            // Drive mode: keep symbol and line layers (road names, shields)
+            // Only remove non-composite fill layers and non-building fill-extrusions
+            if ((layer.type === 'fill-extrusion' && layer.id !== '3d-buildings') || (layer.type === 'fill' && layer.source !== 'composite')) {
+              map.removeLayer(layer.id);
+            }
+          } else {
+            // Flight mode: remove all overlays for pure satellite
+            if (layer.type === 'symbol' || layer.type === 'line' || (layer.type === 'fill-extrusion' && layer.id !== '3d-buildings') || (layer.type === 'fill' && layer.source !== 'composite')) {
+              map.removeLayer(layer.id);
+            }
           }
         }
       } catch {
@@ -152,7 +167,7 @@ export function MapboxView({
           tileSize: 512,
           maxzoom: 14,
         });
-        map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 });
+        map.setTerrain({ source: 'mapbox-dem', exaggeration: driveMode ? 1.0 : 1.5 });
         console.log('[MapboxView] Terrain added successfully');
       } catch (e) {
         console.error('[MapboxView] Terrain failed:', e);
@@ -298,49 +313,77 @@ export function MapboxView({
       console.log('[MapboxView] Preloaded tiles around airport');
     };
 
-    // rAF camera tracking loop — physically positions camera at plane's real altitude
+    // rAF camera tracking loop
     const tick = () => {
       const tgt = targetRef.current;
 
-      // Preload tiles during ground phases
-      preloadTiles();
+      if (tgt.driveMode) {
+        // === Drive mode: street-level camera ===
+        // Camera at ~2m above ground, looking forward along the road
+        const groundElev = map.queryTerrainElevation([tgt.lng, tgt.lat]) ?? 0;
+        const camAltMeters = groundElev + 2; // windshield height
+        const camPos = mapboxgl.MercatorCoordinate.fromLngLat([tgt.lng, tgt.lat], camAltMeters);
 
-      // Plane altitude in meters above ground
-      const altMeters = Math.max(1, tgt.altitude * 0.3048);
+        // Smooth bearing — look forward along travel direction
+        const tgtBearing = tgt.heading;
+        let bDelta = tgtBearing - smoothBearingRef.current;
+        while (bDelta > 180) bDelta -= 360;
+        while (bDelta < -180) bDelta += 360;
+        smoothBearingRef.current += bDelta * 0.08;
+        const bearingRad = (smoothBearingRef.current * Math.PI) / 180;
 
-      // Ground elevation at plane's position (from terrain DEM)
-      const groundElev = map.queryTerrainElevation([tgt.lng, tgt.lat]) ?? 0;
+        // Look forward ~150m down the road at ground level
+        const lookDist = 150;
+        const latOffset = (lookDist * Math.cos(bearingRad)) / 111320;
+        const lngOffset = (lookDist * Math.sin(bearingRad)) / (111320 * Math.cos(tgt.lat * Math.PI / 180));
+        const lookAt = mapboxgl.MercatorCoordinate.fromLngLat(
+          [tgt.lng + lngOffset, tgt.lat + latOffset],
+          groundElev
+        );
 
-      // Camera position: at plane's lat/lng, at altitude above sea level
-      const camAltMeters = groundElev + altMeters;
-      const camPos = mapboxgl.MercatorCoordinate.fromLngLat([tgt.lng, tgt.lat], camAltMeters);
+        const camera = new mapboxgl.FreeCameraOptions(camPos, lookAt);
+        map.setFreeCameraOptions(camera);
+      } else {
+        // === Flight mode: altitude-based camera ===
+        // Preload tiles during ground phases
+        preloadTiles();
 
-      // Pitch from altitude
-      const pitch = altitudeToPitch(tgt.altitude);
-      const pitchRad = (pitch * Math.PI) / 180;
+        // Plane altitude in meters above ground
+        const altMeters = Math.max(1, tgt.altitude * 0.3048);
 
-      // Smooth bearing (left window: perpendicular to travel)
-      const tgtBearing = tgt.heading - 90;
-      let bDelta = tgtBearing - smoothBearingRef.current;
-      while (bDelta > 180) bDelta -= 360;
-      while (bDelta < -180) bDelta += 360;
-      smoothBearingRef.current += bDelta * 0.1;
-      const bearingRad = (smoothBearingRef.current * Math.PI) / 180;
+        // Ground elevation at plane's position (from terrain DEM)
+        const groundElev = map.queryTerrainElevation([tgt.lng, tgt.lat]) ?? 0;
 
-      // Distance to look-at point on ground: h * tan(pitch from vertical)
-      // pitch 0° = straight down (lookDist ≈ 0), pitch 85° = near horizon (lookDist very large)
-      const lookDist = Math.max(1, altMeters * Math.tan(pitchRad));
+        // Camera position: at plane's lat/lng, at altitude above sea level
+        const camAltMeters = groundElev + altMeters;
+        const camPos = mapboxgl.MercatorCoordinate.fromLngLat([tgt.lng, tgt.lat], camAltMeters);
 
-      // Compute look-at point: forward in bearing direction at ground level
-      const latOffset = (lookDist * Math.cos(bearingRad)) / 111320;
-      const lngOffset = (lookDist * Math.sin(bearingRad)) / (111320 * Math.cos(tgt.lat * Math.PI / 180));
-      const lookAt = mapboxgl.MercatorCoordinate.fromLngLat(
-        [tgt.lng + lngOffset, tgt.lat + latOffset],
-        groundElev
-      );
+        // Pitch from altitude
+        const pitch = altitudeToPitch(tgt.altitude);
+        const pitchRad = (pitch * Math.PI) / 180;
 
-      const camera = new mapboxgl.FreeCameraOptions(camPos, lookAt);
-      map.setFreeCameraOptions(camera);
+        // Smooth bearing (left window: perpendicular to travel)
+        const tgtBearing = tgt.heading - 90;
+        let bDelta = tgtBearing - smoothBearingRef.current;
+        while (bDelta > 180) bDelta -= 360;
+        while (bDelta < -180) bDelta += 360;
+        smoothBearingRef.current += bDelta * 0.1;
+        const bearingRad = (smoothBearingRef.current * Math.PI) / 180;
+
+        // Distance to look-at point on ground: h * tan(pitch from vertical)
+        const lookDist = Math.max(1, altMeters * Math.tan(pitchRad));
+
+        // Compute look-at point: forward in bearing direction at ground level
+        const latOffset = (lookDist * Math.cos(bearingRad)) / 111320;
+        const lngOffset = (lookDist * Math.sin(bearingRad)) / (111320 * Math.cos(tgt.lat * Math.PI / 180));
+        const lookAt = mapboxgl.MercatorCoordinate.fromLngLat(
+          [tgt.lng + lngOffset, tgt.lat + latOffset],
+          groundElev
+        );
+
+        const camera = new mapboxgl.FreeCameraOptions(camPos, lookAt);
+        map.setFreeCameraOptions(camera);
+      }
 
       rafRef.current = requestAnimationFrame(tick);
     };
@@ -425,7 +468,7 @@ export function MapboxView({
       style={{
         width: '100%',
         height: '100%',
-        clipPath: 'ellipse(28% 42% at 50% 50%)',
+        clipPath: driveMode ? 'none' : 'ellipse(28% 42% at 50% 50%)',
       }}
     />
   );

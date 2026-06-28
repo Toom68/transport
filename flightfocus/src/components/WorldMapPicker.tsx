@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { MapContainer, TileLayer, Polyline, Marker, Tooltip, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { X, Search, Plane, Car, Anchor, MapPin, Clock, ArrowRight } from 'lucide-react';
+import { X, Search, Plane, Car, Anchor, MapPin, Clock, ArrowRight, Loader2 } from 'lucide-react';
 import type { Place, JourneyType } from '@/types/place';
 import { places } from '@/data/places';
 import { getAvailableJourneyTypes, getDefaultJourneyType } from '@/data/places';
@@ -12,13 +12,17 @@ import {
 } from '@/engine/navigation';
 import { formatDuration, formatDistance } from '@/engine/simulation';
 import { searchPlaces } from '@/utils/search';
+import { searchMapboxPlaces, reverseGeocode } from '@/utils/geocode';
 import { useThemeStore } from '@/store/themeStore';
 
 interface WorldMapPickerProps {
   from: Place;
-  onSelect: (place: Place, journeyType: JourneyType) => void;
+  onSelect: (place: Place, journeyType: JourneyType, customDeparture?: Place) => void;
   onClose: () => void;
+  allowStartSelection?: boolean;
 }
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 
 const dotIcon = L.divIcon({
   html: `<div style="width:8px;height:8px;background:#64748b;border:1.5px solid #94a3b8;border-radius:50%;"></div>`,
@@ -48,11 +52,38 @@ const selectedIcon = L.divIcon({
   iconAnchor: [8, 8],
 });
 
+const customStartIcon = L.divIcon({
+  html: `<div style="width:18px;height:18px;background:#f59e0b;border:2px solid #fcd34d;border-radius:50%;box-shadow:0 0 12px rgba(245,158,11,0.8); display:flex; align-items:center; justify-content:center;"><span style="font-size:9px; color:#fff; font-weight:bold;">S</span></div>`,
+  className: 'ff-cstart',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+});
+
+const customDestIcon = L.divIcon({
+  html: `<div style="width:18px;height:18px;background:#3b82f6;border:2px solid #93c5fd;border-radius:50%;box-shadow:0 0 12px rgba(59,130,246,0.8); display:flex; align-items:center; justify-content:center;"><span style="font-size:9px; color:#fff; font-weight:bold;">D</span></div>`,
+  className: 'ff-cdest',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+});
+
 function FlyTo({ target }: { target: Place | null }) {
   const map = useMap();
   useEffect(() => {
     if (target) map.flyTo([target.lat, target.lng], Math.max(map.getZoom(), 3), { duration: 0.8 });
   }, [target, map]);
+  return null;
+}
+
+function MapClickHandler({
+  onMapClick,
+}: {
+  onMapClick: (lat: number, lng: number) => void;
+}) {
+  useMapEvents({
+    click: (e) => {
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    },
+  });
   return null;
 }
 
@@ -70,37 +101,123 @@ function MapResizer() {
   return null;
 }
 
-export function WorldMapPicker({ from, onSelect, onClose }: WorldMapPickerProps) {
+export function WorldMapPicker({ from, onSelect, onClose, allowStartSelection = false }: WorldMapPickerProps) {
   const { mode } = useThemeStore();
   const [selected, setSelected] = useState<Place | null>(null);
+  const [customDeparture, setCustomDeparture] = useState<Place | null>(null);
   const [query, setQuery] = useState('');
+  const [mapboxResults, setMapboxResults] = useState<Place[]>([]);
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
+  const [selectingStart, setSelectingStart] = useState(false);
+  const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const searchResults = useMemo(
+  const effectiveFrom = customDeparture ?? from;
+
+  // Local search results (predefined places)
+  const localResults = useMemo(
     () => (query.length > 0 ? searchPlaces(query, 6) : []),
     [query]
   );
 
+  // Debounced Mapbox geocoding search
+  useEffect(() => {
+    if (geocodeTimer.current) clearTimeout(geocodeTimer.current);
+    if (query.length < 3 || !MAPBOX_TOKEN) {
+      setMapboxResults([]);
+      return;
+    }
+    setIsGeocoding(true);
+    geocodeTimer.current = setTimeout(async () => {
+      const results = await searchMapboxPlaces(query, MAPBOX_TOKEN, 6);
+      setMapboxResults(results);
+      setIsGeocoding(false);
+    }, 350);
+    return () => { if (geocodeTimer.current) clearTimeout(geocodeTimer.current); };
+  }, [query]);
+
+  // Combine local and Mapbox results, deduplicating by id
+  const allResults = useMemo(() => {
+    const seen = new Set<string>();
+    const combined: { place: Place; isMapbox: boolean }[] = [];
+    for (const r of localResults) {
+      if (!seen.has(r.place.id)) {
+        seen.add(r.place.id);
+        combined.push({ place: r.place, isMapbox: false });
+      }
+    }
+    for (const p of mapboxResults) {
+      if (!seen.has(p.id)) {
+        seen.add(p.id);
+        combined.push({ place: p, isMapbox: true });
+      }
+    }
+    return combined;
+  }, [localResults, mapboxResults]);
+
   const distance = selected
-    ? greatCircleDistance(from.lat, from.lng, selected.lat, selected.lng)
+    ? greatCircleDistance(effectiveFrom.lat, effectiveFrom.lng, selected.lat, selected.lng)
     : 0;
-  const availableJourneyTypes = selected ? getAvailableJourneyTypes(from, selected) : [];
-  const defaultJourneyType = selected ? getDefaultJourneyType(from, selected) : 'fly';
+  const availableJourneyTypes = selected ? getAvailableJourneyTypes(effectiveFrom, selected) : [];
+  const defaultJourneyType = selected ? getDefaultJourneyType(effectiveFrom, selected) : 'fly';
   const [selectedJourneyType, setSelectedJourneyType] = useState<JourneyType>('fly');
 
-  // When a new place is selected, reset journey type to default
   useEffect(() => {
     if (selected) setSelectedJourneyType(defaultJourneyType);
   }, [selected, defaultJourneyType]);
 
   const duration = distance > 0 ? estimateDuration(distance, selectedJourneyType) : 0;
-  const bearing = selected ? initialBearing(from.lat, from.lng, selected.lat, selected.lng) : 0;
+  const bearing = selected ? initialBearing(effectiveFrom.lat, effectiveFrom.lng, selected.lat, selected.lng) : 0;
 
   const routeLatLngs: [number, number][] = useMemo(() => {
     if (!selected) return [];
-    return generateRoutePoints(from.lat, from.lng, selected.lat, selected.lng, 64).map(
+    return generateRoutePoints(effectiveFrom.lat, effectiveFrom.lng, selected.lat, selected.lng, 64).map(
       (p) => [p.lat, p.lng] as [number, number]
     );
-  }, [from, selected]);
+  }, [effectiveFrom, selected]);
+
+  // Handle map click — place a pin with reverse geocoding
+  const handleMapClick = async (lat: number, lng: number) => {
+    if (selectingStart) {
+      // Placing a custom start pin
+      setIsReverseGeocoding(true);
+      const place = await reverseGeocode(lat, lng, MAPBOX_TOKEN);
+      setIsReverseGeocoding(false);
+      const startPlace: Place = place
+        ? place
+        : {
+            id: `custom-start-${lat.toFixed(4)}-${lng.toFixed(4)}`,
+            kind: 'city',
+            name: `${lat.toFixed(2)}, ${lng.toFixed(2)}`,
+            city: `${lat.toFixed(2)}, ${lng.toFixed(2)}`,
+            country: '',
+            lat,
+            lng,
+            timezone: 'Etc/GMT+0',
+          };
+      setCustomDeparture(startPlace);
+      setSelected(null);
+      setSelectingStart(false);
+    } else {
+      // Placing a destination pin
+      setIsReverseGeocoding(true);
+      const place = await reverseGeocode(lat, lng, MAPBOX_TOKEN);
+      setIsReverseGeocoding(false);
+      const destPlace: Place = place
+        ? place
+        : {
+            id: `custom-dest-${lat.toFixed(4)}-${lng.toFixed(4)}`,
+            kind: 'city',
+            name: `${lat.toFixed(2)}, ${lng.toFixed(2)}`,
+            city: `${lat.toFixed(2)}, ${lng.toFixed(2)}`,
+            country: '',
+            lat,
+            lng,
+            timezone: 'Etc/GMT+0',
+          };
+      setSelected(destPlace);
+    }
+  };
 
   return (
     <motion.div
@@ -122,7 +239,7 @@ export function WorldMapPicker({ from, onSelect, onClose }: WorldMapPickerProps)
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-theme-accent" />
             <span className="text-sm font-serif font-medium text-theme-primary">Choose your destination</span>
-            <span className="text-xs text-theme-muted">from {from.city} ({from.iata ?? from.id})</span>
+            <span className="text-xs text-theme-muted">from {effectiveFrom.city}{customDeparture ? ' (custom)' : ` (${effectiveFrom.iata ?? effectiveFrom.id})`}</span>
           </div>
           <button onClick={onClose} className="text-theme-muted hover:text-theme-primary">
             <X className="w-5 h-5" />
@@ -137,24 +254,27 @@ export function WorldMapPicker({ from, onSelect, onClose }: WorldMapPickerProps)
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search a city, airport, or port..."
-              className="w-full pl-10 pr-4 py-2.5 bg-theme-dim border border-theme-border rounded-lg text-theme-primary placeholder-theme-muted focus:outline-none focus:border-theme-accent-border text-sm"
+              placeholder="Search any address, city, or place worldwide..."
+              className="w-full pl-10 pr-10 py-2.5 bg-theme-dim border border-theme-border rounded-lg text-theme-primary placeholder-theme-muted focus:outline-none focus:border-theme-accent-border text-sm"
             />
+            {isGeocoding && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-theme-muted animate-spin" />
+            )}
           </div>
-          {searchResults.length > 0 && (
-            <div className="absolute left-3 right-3 mt-1 z-[1200] bg-theme-panel-solid border border-theme-border rounded-lg shadow-panel overflow-hidden">
-              {searchResults.map((r) => (
+          {allResults.length > 0 && (
+            <div className="absolute left-3 right-3 mt-1 z-[1200] bg-theme-panel-solid border border-theme-border rounded-lg shadow-panel overflow-hidden max-h-64 overflow-y-auto">
+              {allResults.map(({ place: p, isMapbox }) => (
                 <button
-                  key={r.place.id}
-                  onClick={() => { setSelected(r.place); setQuery(''); }}
-                  disabled={r.place.id === from.id}
+                  key={p.id}
+                  onClick={() => { setSelected(p); setQuery(''); setMapboxResults([]); }}
+                  disabled={p.id === effectiveFrom.id}
                   className="w-full flex items-center gap-3 p-2.5 text-left hover:bg-theme-dim disabled:opacity-40 transition-colors"
                 >
-                  <MapPin className="w-4 h-4 text-theme-muted" />
+                  <MapPin className="w-4 h-4 text-theme-muted shrink-0" />
                   <div className="min-w-0">
-                    {r.place.iata && <span className="font-mono text-sm text-theme-primary">{r.place.iata}</span>}
-                    <span className="text-xs text-theme-secondary ml-2">{r.place.city}, {r.place.country}</span>
-                    <span className="text-[10px] text-theme-muted ml-2">{r.place.kind}</span>
+                    {p.iata && <span className="font-mono text-sm text-theme-primary">{p.iata}</span>}
+                    <span className="text-xs text-theme-secondary ml-2">{p.city}, {p.country}</span>
+                    <span className="text-[10px] text-theme-muted ml-2">{isMapbox ? 'address' : p.kind}</span>
                   </div>
                 </button>
               ))}
@@ -165,7 +285,7 @@ export function WorldMapPicker({ from, onSelect, onClose }: WorldMapPickerProps)
         {/* Map */}
         <div className="relative h-[52vh] shrink-0">
           <MapContainer
-            center={[from.lat, from.lng]}
+            center={[effectiveFrom.lat, effectiveFrom.lng]}
             zoom={2}
             minZoom={2}
             worldCopyJump
@@ -179,6 +299,7 @@ export function WorldMapPicker({ from, onSelect, onClose }: WorldMapPickerProps)
               : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'} />
             <MapResizer />
             <FlyTo target={selected} />
+            <MapClickHandler onMapClick={handleMapClick} />
 
             {routeLatLngs.length > 1 && (
               <Polyline
@@ -188,7 +309,7 @@ export function WorldMapPicker({ from, onSelect, onClose }: WorldMapPickerProps)
             )}
 
             {places.map((p) => {
-              const isFrom = p.id === from.id;
+              const isFrom = p.id === effectiveFrom.id;
               const isSel = selected?.id === p.id;
               return (
                 <Marker
@@ -204,16 +325,79 @@ export function WorldMapPicker({ from, onSelect, onClose }: WorldMapPickerProps)
                 </Marker>
               );
             })}
+
+            {/* Custom departure marker */}
+            {customDeparture && (
+              <Marker position={[customDeparture.lat, customDeparture.lng]} icon={customStartIcon}>
+                <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent>
+                  <span className="text-[10px] text-theme-secondary">{customDeparture.city}</span>
+                </Tooltip>
+              </Marker>
+            )}
+
+            {/* Custom destination marker (from map click) */}
+            {selected && selected.id.startsWith('custom-dest-') && (
+              <Marker position={[selected.lat, selected.lng]} icon={customDestIcon}>
+                <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent>
+                  <span className="text-[10px] text-theme-secondary">{selected.city}</span>
+                </Tooltip>
+              </Marker>
+            )}
           </MapContainer>
+
+          {/* Reverse geocoding loading indicator */}
+          {isReverseGeocoding && (
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1500] bg-theme-panel-solid border border-theme-border rounded-lg px-4 py-2 flex items-center gap-2 shadow-panel">
+              <Loader2 className="w-4 h-4 text-theme-accent animate-spin" />
+              <span className="text-xs text-theme-secondary">Resolving location...</span>
+            </div>
+          )}
+
+          {/* Start selection mode indicator */}
+          {selectingStart && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1500] bg-amber-500/90 text-white rounded-lg px-4 py-2 flex items-center gap-2 shadow-panel">
+              <MapPin className="w-4 h-4" />
+              <span className="text-xs font-medium">Click on the map to set your starting point</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); setSelectingStart(false); }}
+                className="ml-2 text-white/80 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Confirm bar */}
         <div className="p-4 border-t border-theme-border">
+          {allowStartSelection && (
+            <div className="flex items-center gap-2 mb-3">
+              <button
+                onClick={() => { setSelectingStart(true); setSelected(null); }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1.5 ${
+                  selectingStart
+                    ? 'bg-amber-500/20 text-amber-500 border border-amber-500/40'
+                    : 'bg-theme-dim text-theme-muted border border-theme-border hover:text-theme-secondary'
+                }`}
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                {customDeparture ? 'Change start' : 'Set custom start'}
+              </button>
+              {customDeparture && (
+                <button
+                  onClick={() => { setCustomDeparture(null); }}
+                  className="px-2 py-1.5 rounded-lg text-xs text-theme-muted hover:text-theme-secondary transition-colors"
+                >
+                  Reset to {from.city}
+                </button>
+              )}
+            </div>
+          )}
           {selected ? (
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 justify-between">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="font-mono font-bold text-theme-primary">{from.iata ?? from.city}</span>
+                  <span className="font-mono font-bold text-theme-primary">{effectiveFrom.iata ?? effectiveFrom.city}</span>
                   <ArrowRight className="w-4 h-4 text-theme-muted" />
                   <span className="font-mono font-bold text-theme-accent">{selected.iata ?? selected.city}</span>
                   <span className="text-theme-secondary truncate">— {selected.city}, {selected.country}</span>
@@ -246,7 +430,7 @@ export function WorldMapPicker({ from, onSelect, onClose }: WorldMapPickerProps)
                 </div>
               </div>
               <button
-                onClick={() => onSelect(selected, selectedJourneyType)}
+                onClick={() => onSelect(selected, selectedJourneyType, customDeparture ?? undefined)}
                 className="w-full sm:w-auto px-6 py-3 btn-primary rounded-xl flex items-center justify-center gap-2 shrink-0"
               >
                 {selectedJourneyType === 'fly' ? <Plane className="w-4 h-4" /> : selectedJourneyType === 'drive' ? <Car className="w-4 h-4" /> : <Anchor className="w-4 h-4" />}
@@ -254,7 +438,11 @@ export function WorldMapPicker({ from, onSelect, onClose }: WorldMapPickerProps)
               </button>
             </div>
           ) : (
-            <p className="text-center text-sm text-theme-muted">Tap a place on the map or search to pick where you'll go next.</p>
+            <p className="text-center text-sm text-theme-muted">
+              {selectingStart
+                ? 'Click anywhere on the map to set your starting point.'
+                : 'Click on the map, tap a place marker, or search any address worldwide.'}
+            </p>
           )}
         </div>
       </motion.div>

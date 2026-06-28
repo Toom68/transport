@@ -20,17 +20,25 @@ const planeIcon = L.divIcon({
   iconAnchor: [12, 12],
 });
 
-const carIcon = L.divIcon({
-  html: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="12" cy="12" r="10" fill="rgba(16,185,129,0.2)"/>
-    <path d="M5 17h14v-2l-1.5-5h-11L5 15v2z" fill="white" stroke="white" stroke-width="0.5"/>
-    <circle cx="8" cy="17" r="1.5" fill="#333"/>
-    <circle cx="16" cy="17" r="1.5" fill="#333"/>
-  </svg>`,
-  className: '',
-  iconSize: [24, 24],
-  iconAnchor: [12, 12],
-});
+function makeCarIcon(heading: number): L.DivIcon {
+  return L.divIcon({
+    html: `<div style="transform: rotate(${heading}deg); transition: transform 0.3s ease;">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="14" cy="14" r="13" fill="rgba(16,185,129,0.12)"/>
+        <rect x="9" y="6" width="10" height="16" rx="3" fill="#10b981" stroke="white" stroke-width="0.8"/>
+        <rect x="10.5" y="8" width="7" height="5" rx="1.5" fill="rgba(255,255,255,0.7)"/>
+        <rect x="10.5" y="15" width="7" height="4" rx="1" fill="rgba(255,255,255,0.3)"/>
+        <rect x="8" y="9" width="2" height="3" rx="1" fill="#1a1a1a"/>
+        <rect x="18" y="9" width="2" height="3" rx="1" fill="#1a1a1a"/>
+        <rect x="8" y="17" width="2" height="3" rx="1" fill="#1a1a1a"/>
+        <rect x="18" y="17" width="2" height="3" rx="1" fill="#1a1a1a"/>
+      </svg>
+    </div>`,
+    className: '',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+}
 
 const depIcon = L.divIcon({
   html: `<div style="width:14px;height:14px;background:#3b82f6;border:2px solid #93c5fd;border-radius:50%;box-shadow:0 0 8px rgba(59,130,246,0.6);"></div>`,
@@ -106,25 +114,30 @@ function FollowUpdater({
 export function FlightMap() {
   const { route, position, progress, arrival, simulationDate, journeyType } = useFlightStore();
   const { mode } = useThemeStore();
-  const [follow, setFollow] = useState(false);
+  const isDrive = journeyType === 'drive';
+  const [follow, setFollow] = useState(isDrive);
 
   if (!route) return null;
-
-  const isDrive = journeyType === 'drive';
-  const vehicleIcon = isDrive ? carIcon : planeIcon;
+  const vehicleIcon = isDrive ? makeCarIcon(position.heading) : planeIcon;
   const routeColor = isDrive ? '#10b981' : '#3b82f6';
   const routeTraveledColor = isDrive ? '#10b981' : '#3b82f6';
-
+  const routeWeight = isDrive ? 4 : 2;
+  const traveledWeight = isDrive ? 5 : 3;
   const centerLat = (route.departure.lat + route.arrival.lat) / 2;
   const centerLng = (route.departure.lng + route.arrival.lng) / 2;
 
   const latSpan = Math.abs(route.departure.lat - route.arrival.lat);
   const lngSpan = Math.abs(route.departure.lng - route.arrival.lng);
   const maxSpan = Math.max(latSpan, lngSpan);
-  const zoom = maxSpan > 100 ? 3 : maxSpan > 50 ? 4 : maxSpan > 20 ? 5 : 6;
+  const driveZoom = 13;
+  const zoom = isDrive ? driveZoom : (maxSpan > 100 ? 3 : maxSpan > 50 ? 4 : maxSpan > 20 ? 5 : 6);
 
+  // For drive mode, use all points to follow roads precisely.
+  // For flight, decimate to reduce polyline vertex count.
   const routeLatLngs: [number, number][] = route.points
-    .filter((_: unknown, i: number) => i % 3 === 0 || i === route.points.length - 1)
+    .filter((_: unknown, i: number) =>
+      isDrive ? true : (i % 3 === 0 || i === route.points.length - 1)
+    )
     .map((p: { lat: number; lng: number }) => [p.lat, p.lng]);
 
   const traveledIndex = Math.floor(progress * (routeLatLngs.length - 1));
@@ -159,13 +172,18 @@ export function FlightMap() {
 
         <Polyline
           positions={routeLatLngs}
-          pathOptions={{ color: routeColor, weight: 2, opacity: 0.3, dashArray: '8 6' }}
+          pathOptions={{
+            color: routeColor,
+            weight: routeWeight,
+            opacity: isDrive ? 0.35 : 0.3,
+            dashArray: isDrive ? '6 4' : '8 6',
+          }}
         />
 
         {traveledLatLngs.length > 1 && (
           <Polyline
             positions={traveledLatLngs}
-            pathOptions={{ color: routeTraveledColor, weight: 3, opacity: 0.9 }}
+            pathOptions={{ color: routeTraveledColor, weight: traveledWeight, opacity: 0.9 }}
           />
         )}
 

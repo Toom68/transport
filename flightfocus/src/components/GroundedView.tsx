@@ -42,8 +42,9 @@ export function GroundedView() {
     setViewMode('home');
   };
 
-  const handleSelectDestination = (dest: Place, journeyType: JourneyType) => {
-    setDeparture(here);
+  const handleSelectDestination = (dest: Place, journeyType: JourneyType, customDeparture?: Place) => {
+    const departure = customDeparture ?? here;
+    setDeparture(departure);
     setArrival(dest);
     setJourneyType(journeyType);
     setPickerOpen(false);
@@ -158,7 +159,7 @@ export function GroundedView() {
 
       <AnimatePresence>
         {pickerOpen && (
-          <WorldMapPicker from={here} onSelect={handleSelectDestination} onClose={() => setPickerOpen(false)} />
+          <WorldMapPicker from={here} onSelect={handleSelectDestination} onClose={() => setPickerOpen(false)} allowStartSelection />
         )}
       </AnimatePresence>
     </div>

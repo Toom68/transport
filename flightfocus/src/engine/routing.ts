@@ -44,8 +44,8 @@ export async function fetchDriveRoute(
     const rawCoords = route.geometry.coordinates;
     if (!rawCoords || rawCoords.length < 2) return null;
 
-    // Downsample to ~200 points if the API returned too many
-    const maxPoints = 200;
+    // Downsample to ~500 points to preserve road detail on winding routes
+    const maxPoints = 500;
     const step = Math.max(1, Math.ceil(rawCoords.length / maxPoints));
     const sampled: [number, number][] = [];
     for (let i = 0; i < rawCoords.length; i += step) {
