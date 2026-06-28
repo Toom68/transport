@@ -223,24 +223,45 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
     return [];
   }, [accessToken]);
 
-  // Find the nearest image in the preloaded sequence array to the car's position
-  const findNearestInSequence = useCallback((
+  // Find the starting index in a sequence: the last image at or behind the car's position.
+  // Uses along-track distance relative to route bearing — images ahead of the car are skipped.
+  const findStartIndexForPosition = useCallback((
     carLat: number,
     carLng: number,
-    images: SeqImage[]
-  ): { image: SeqImage; index: number; dist: number } | null => {
-    if (images.length === 0) return null;
+    images: SeqImage[],
+  ): number => {
+    if (images.length === 0) return 0;
+    const segment = findNearestRouteSegment(carLat, carLng, routePointsRef.current);
+    const routeBearing = segment?.bearing ?? heading;
+
     let bestIdx = 0;
-    let bestDist = Infinity;
     for (let i = 0; i < images.length; i++) {
-      const d = haversineMeters(carLat, carLng, images[i].lat, images[i].lng);
-      if (d < bestDist) {
-        bestDist = d;
+      const track = crossTrackDistance(carLat, carLng, images[i].lat, images[i].lng, routeBearing);
+      // along <= 0 means image is at or behind the car — pick the last such image
+      if (track.along <= 0) {
         bestIdx = i;
       }
     }
-    return { image: images[bestIdx], index: bestIdx, dist: bestDist };
-  }, []);
+    return bestIdx;
+  }, [heading]);
+
+  // Check if the car has reached or passed the next image in the sequence.
+  // Only returns true when along-track distance to next image <= 0 (car is at/past it).
+  const shouldAdvanceToNext = useCallback((
+    carLat: number,
+    carLng: number,
+    images: SeqImage[],
+    currentIndex: number,
+  ): boolean => {
+    if (images.length === 0) return false;
+    if (currentIndex >= images.length - 1) return false; // no next image
+    const nextImg = images[currentIndex + 1];
+    const segment = findNearestRouteSegment(carLat, carLng, routePointsRef.current);
+    const routeBearing = segment?.bearing ?? heading;
+    const track = crossTrackDistance(carLat, carLng, nextImg.lat, nextImg.lng, routeBearing);
+    // along <= 0 means car has reached or passed the next image
+    return track.along <= 0;
+  }, [heading]);
 
   // Check if the car has moved past the end of the current sequence
   const isSequenceExhausted = useCallback((
@@ -250,14 +271,19 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
     currentIndex: number
   ): boolean => {
     if (images.length === 0) return true;
-    // If car is beyond STICKY_SEQUENCE_END_M past the last image, sequence is exhausted
     const lastImg = images[images.length - 1];
-    const distToEnd = haversineMeters(carLat, carLng, lastImg.lat, lastImg.lng);
-    // Also check if the nearest image is too far (gap in coverage)
-    const nearest = findNearestInSequence(carLat, carLng, images);
-    if (nearest && nearest.dist > STICKY_SEQUENCE_MAX_GAP_M) return true;
-    return distToEnd > STICKY_SEQUENCE_END_M && !!nearest && nearest.index >= images.length - 3;
-  }, [findNearestInSequence]);
+    const segment = findNearestRouteSegment(carLat, carLng, routePointsRef.current);
+    const routeBearing = segment?.bearing ?? heading;
+    // Along-track to last image: if car is well past it, sequence is exhausted
+    const trackToEnd = crossTrackDistance(carLat, carLng, lastImg.lat, lastImg.lng, routeBearing);
+    // If car is more than STICKY_SEQUENCE_END_M ahead of the last image
+    if (trackToEnd.along < -STICKY_SEQUENCE_END_M) return true;
+    // If nearest image in sequence is too far (gap in coverage)
+    const currentImg = images[currentIndex];
+    const distToCurrent = haversineMeters(carLat, carLng, currentImg.lat, currentImg.lng);
+    if (distToCurrent > STICKY_SEQUENCE_MAX_GAP_M) return true;
+    return false;
+  }, [heading]);
 
   // Fetch Google Street View static image
   const fetchGoogleStreetView = useCallback(async (svLat: number, svLng: number, svHeading: number): Promise<GoogleImg | null> => {
@@ -297,10 +323,11 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
           currentSequenceIdRef.current = seqResult.sequenceId;
           sequenceImagesRef.current = images;
 
-          // Find nearest image in sequence to car's starting position
-          const nearest = findNearestInSequence(lat, lng, images);
-          const startImageId = nearest?.image.id ?? seqResult.firstImageId;
-          sequenceIndexRef.current = nearest?.index ?? 0;
+          // Find the last image at or behind the car's starting position
+          const startIndex = findStartIndexForPosition(lat, lng, images);
+          const startImage = images[startIndex];
+          const startImageId = startImage?.id ?? seqResult.firstImageId;
+          sequenceIndexRef.current = startIndex;
 
           const viewer = new Viewer({
             accessToken,
@@ -310,8 +337,8 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
           });
           viewerRef.current = viewer;
           currentImageIdRef.current = startImageId;
-          lastSearchLatRef.current = nearest?.image.lat ?? lat;
-          lastSearchLngRef.current = nearest?.image.lng ?? lng;
+          lastSearchLatRef.current = startImage?.lat ?? lat;
+          lastSearchLngRef.current = startImage?.lng ?? lng;
           viewer.on('image', () => setLoading(false));
         } else if (googleApiKey) {
           // Sequence preload failed — try Google
@@ -394,15 +421,15 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
                   if (newImages.length > 0) {
                     currentSequenceIdRef.current = newSeq.sequenceId;
                     sequenceImagesRef.current = newImages;
-                    const nearest = findNearestInSequence(curLat, curLng, newImages);
-                    const newId = nearest?.image.id ?? newSeq.firstImageId;
-                    sequenceIndexRef.current = nearest?.index ?? 0;
+                    const startIndex = findStartIndexForPosition(curLat, curLng, newImages);
+                    const newId = newImages[startIndex]?.id ?? newSeq.firstImageId;
+                    sequenceIndexRef.current = startIndex;
                     if (newId !== currentImageIdRef.current) {
                       try {
                         await viewerRef.current?.moveTo(newId);
                         currentImageIdRef.current = newId;
-                        lastSearchLatRef.current = nearest?.image.lat ?? curLat;
-                        lastSearchLngRef.current = nearest?.image.lng ?? curLng;
+                        lastSearchLatRef.current = newImages[startIndex]?.lat ?? curLat;
+                        lastSearchLngRef.current = newImages[startIndex]?.lng ?? curLng;
                       } catch {}
                     }
                     return;
@@ -430,15 +457,16 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
                 return; // stay on last Mapillary image
               }
 
-              // Sequence not exhausted — advance to nearest image in sequence
-              const nearest = findNearestInSequence(curLat, curLng, images);
-              if (nearest && nearest.image.id !== currentImageIdRef.current) {
-                sequenceIndexRef.current = nearest.index;
+              // Sequence not exhausted — check if car has reached the next image
+              if (shouldAdvanceToNext(curLat, curLng, images, sequenceIndexRef.current)) {
+                const nextIndex = sequenceIndexRef.current + 1;
+                const nextImg = images[nextIndex];
+                sequenceIndexRef.current = nextIndex;
                 try {
-                  await viewerRef.current?.moveTo(nearest.image.id);
-                  currentImageIdRef.current = nearest.image.id;
-                  lastSearchLatRef.current = nearest.image.lat;
-                  lastSearchLngRef.current = nearest.image.lng;
+                  await viewerRef.current?.moveTo(nextImg.id);
+                  currentImageIdRef.current = nextImg.id;
+                  lastSearchLatRef.current = nextImg.lat;
+                  lastSearchLngRef.current = nextImg.lng;
                 } catch {}
               }
             })();
@@ -454,9 +482,9 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
                   providerRef.current = 'mapillary';
                   currentSequenceIdRef.current = seqResult.sequenceId;
                   sequenceImagesRef.current = newImages;
-                  const nearest = findNearestInSequence(curLat, curLng, newImages);
-                  const startId = nearest?.image.id ?? seqResult.firstImageId;
-                  sequenceIndexRef.current = nearest?.index ?? 0;
+                  const startIndex = findStartIndexForPosition(curLat, curLng, newImages);
+                  const startId = newImages[startIndex]?.id ?? seqResult.firstImageId;
+                  sequenceIndexRef.current = startIndex;
                   const viewer = new Viewer({
                     accessToken,
                     container: containerRef.current!,
@@ -465,8 +493,8 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
                   });
                   viewerRef.current = viewer;
                   currentImageIdRef.current = startId;
-                  lastSearchLatRef.current = nearest?.image.lat ?? curLat;
-                  lastSearchLngRef.current = nearest?.image.lng ?? curLng;
+                  lastSearchLatRef.current = newImages[startIndex]?.lat ?? curLat;
+                  lastSearchLngRef.current = newImages[startIndex]?.lng ?? curLng;
                   viewer.on('image', () => {});
                   return;
                 }
@@ -488,7 +516,7 @@ export function StreetView({ lat, lng, heading, accessToken, googleApiKey, isMov
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [findBestSequence, preloadSequence, findNearestInSequence, isSequenceExhausted, fetchGoogleStreetView, googleApiKey, accessToken]);
+  }, [findBestSequence, preloadSequence, findStartIndexForPosition, shouldAdvanceToNext, isSequenceExhausted, fetchGoogleStreetView, googleApiKey, accessToken]);
 
   // Google crossfade
   useEffect(() => {
