@@ -35,7 +35,7 @@ const DRIVE_PHASE_LABELS: Record<JourneyPhase, string> = {
 };
 
 export function DriveWindowView() {
-  const { position, phase, simulationDate, departure, arrival, isRouteLoading, progress } = useFlightStore();
+  const { position, phase, simulationDate, departure, arrival, isRouteLoading, progress, route } = useFlightStore();
   const { mode } = useThemeStore();
   const [viewMode, setViewMode] = useState<ViewMode>('windshield');
   const isMoving = phase === 'DRIVING' || phase === 'DEPARTING' || phase === 'ARRIVING';
@@ -80,6 +80,7 @@ export function DriveWindowView() {
           accessToken={MAPILLARY_TOKEN}
           googleApiKey={GOOGLE_STREETVIEW_KEY || undefined}
           isMoving={isMoving}
+          routePoints={route?.points ?? []}
         />
       ) : viewMode === 'chase' ? (
         <ChaseCamView
