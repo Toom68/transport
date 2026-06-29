@@ -110,9 +110,9 @@ export function HomeScreen() {
             initial={{ scale: 0.8 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: 'spring' }}
-            className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-theme-accent-soft border border-theme-accent-border mb-5 shadow-soft"
+            className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-theme-accent-soft border border-theme-accent-border mb-5 shadow-soft"
           >
-            <TransportLogo className="w-8 h-8 text-theme-accent" />
+            <TransportLogo className="w-16 h-16 text-theme-accent" />
           </motion.div>
           <h1 className="text-3xl font-serif font-semibold text-theme-primary mb-2">TransportFocus</h1>
           <p className="text-theme-secondary text-sm font-serif italic">A quiet journey across the world. Pick up where you arrived.</p>
