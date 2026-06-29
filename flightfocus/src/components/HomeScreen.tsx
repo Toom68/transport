@@ -12,16 +12,24 @@ import { PlaceSearch } from './PlaceSearch';
 function TransportLogo({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="7" />
-      <path d="M5 12h14" />
-      <path d="M12 5c2.5 2.5 2.5 11.5 0 14" />
-      <path d="M12 5c-2.5 2.5 -2.5 11.5 0 14" />
-      <path d="M20.5 4.5l-3 1.5-2-1-1 .5 1.5 2-1 2.5.5 1 2-1.5 2.5 1 1-.5-.5-1 1-2.5z" fill="currentColor" stroke="none" />
-      <path d="M3.5 18l.5-2 1.5-1h2l1.5 1 .5 2v1h-6z" fill="currentColor" stroke="none" />
-      <circle cx="5" cy="19.5" r="0.8" fill="none" stroke="currentColor" strokeWidth="1" />
-      <circle cx="8" cy="19.5" r="0.8" fill="none" stroke="currentColor" strokeWidth="1" />
-      <path d="M15 17h4l-.5 2h-3z" fill="currentColor" stroke="none" />
-      <path d="M16 14.5h2v2.5h-2z" fill="currentColor" stroke="none" />
+      {/* Globe — centered, smaller */}
+      <circle cx="12" cy="11" r="4.5" />
+      <path d="M7.5 11h9" />
+      <path d="M12 6.5c2 2 2 7 0 9" />
+      <path d="M12 6.5c-2 2 -2 7 0 9" />
+
+      {/* Plane — top, above globe */}
+      <path d="M12 1.5l-1 2.5-3.5 1v1l3.5-.5v2.5l-1 .8v.7l2-.5 2 .5v-.7l-1-.8V5.5l3.5.5v-1L13 4z" fill="currentColor" stroke="none" />
+
+      {/* Car — bottom left */}
+      <path d="M4 20.5l.4-1.8 1.2-.8h2.8l1.2 .8 .4 1.8v.8H4z" fill="currentColor" stroke="none" />
+      <circle cx="5.5" cy="21.5" r="0.9" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="8.5" cy="21.5" r="0.9" fill="none" stroke="currentColor" strokeWidth="1.2" />
+
+      {/* Boat — bottom right */}
+      <path d="M14.5 19.5h5l-.6 2.2h-3.8z" fill="currentColor" stroke="none" />
+      <path d="M16.5 16.5h2v3h-2z" fill="currentColor" stroke="none" />
+      <path d="M16.5 16.5l1-1.2 1 1.2" fill="none" stroke="currentColor" strokeWidth="1.2" />
     </svg>
   );
 }
