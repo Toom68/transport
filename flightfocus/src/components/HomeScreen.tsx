@@ -9,6 +9,23 @@ import type { SaveGame } from '@/types/savegame';
 import type { Place } from '@/types/place';
 import { PlaceSearch } from './PlaceSearch';
 
+function TransportLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="7" />
+      <path d="M5 12h14" />
+      <path d="M12 5c2.5 2.5 2.5 11.5 0 14" />
+      <path d="M12 5c-2.5 2.5 -2.5 11.5 0 14" />
+      <path d="M20.5 4.5l-3 1.5-2-1-1 .5 1.5 2-1 2.5.5 1 2-1.5 2.5 1 1-.5-.5-1 1-2.5z" fill="currentColor" stroke="none" />
+      <path d="M3.5 18l.5-2 1.5-1h2l1.5 1 .5 2v1h-6z" fill="currentColor" stroke="none" />
+      <circle cx="5" cy="19.5" r="0.8" fill="none" stroke="currentColor" strokeWidth="1" />
+      <circle cx="8" cy="19.5" r="0.8" fill="none" stroke="currentColor" strokeWidth="1" />
+      <path d="M15 17h4l-.5 2h-3z" fill="currentColor" stroke="none" />
+      <path d="M16 14.5h2v2.5h-2z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 function SpotifyIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -79,9 +96,9 @@ export function HomeScreen() {
             transition={{ delay: 0.2, type: 'spring' }}
             className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-theme-accent-soft border border-theme-accent-border mb-5 shadow-soft"
           >
-            <Plane className="w-8 h-8 text-theme-accent" />
+            <TransportLogo className="w-8 h-8 text-theme-accent" />
           </motion.div>
-          <h1 className="text-3xl font-serif font-semibold text-theme-primary mb-2">transportfocus</h1>
+          <h1 className="text-3xl font-serif font-semibold text-theme-primary mb-2">TransportFocus</h1>
           <p className="text-theme-secondary text-sm font-serif italic">A quiet journey across the world. Pick up where you arrived.</p>
         </div>
 
