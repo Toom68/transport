@@ -11,27 +11,27 @@ import { PlaceSearch } from './PlaceSearch';
 
 function TransportLogo({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       {/* Globe — centered */}
-      <circle cx="12" cy="12" r="5" />
-      <path d="M7 12h10" />
-      <path d="M12 7c2.5 2.5 2.5 7.5 0 10" />
-      <path d="M12 7c-2.5 2.5 -2.5 7.5 0 10" />
+      <circle cx="16" cy="16" r="6.5" />
+      <path d="M9.5 16h13" />
+      <path d="M16 9.5c3.2 3.2 3.2 9.8 0 13" />
+      <path d="M16 9.5c-3.2 3.2 -3.2 9.8 0 13" />
 
       {/* Plane — top center, above globe */}
-      <path d="M12 1l-1.2 3-4 1.2v1l4-.6v2.8l-1.2 1v.8l2.4-.6 2.4.6v-.8l-1.2-1V5.6l4 .6v-1L13.2 4z" fill="currentColor" stroke="none" />
+      <path d="M16 1.5l-1.6 4-5.2 1.6v1.3l5.2-.8v3.7l-1.6 1.3v1l3.2-.8 3.2.8v-1l-1.6-1.3V7.6l5.2.8V7.1L17.6 5.5z" fill="currentColor" stroke="none" />
 
       {/* Car — left side of globe */}
-      <path d="M1 12.5l.5-1.5 1-.7h2l1 .7.5 1.5v1.2H1z" fill="currentColor" stroke="none" />
-      <circle cx="2.2" cy="13.8" r="0.8" fill="none" stroke="currentColor" strokeWidth="1.2" />
-      <circle cx="4.3" cy="13.8" r="0.8" fill="none" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M1.8 11l.7-1.5h1.4l.7 1.5" fill="none" stroke="currentColor" strokeWidth="1" />
+      <path d="M1.5 16.5l.7-2 1.3-.9h2.6l1.3.9.7 2v1.6H1.5z" fill="currentColor" stroke="none" />
+      <circle cx="3" cy="18.2" r="1.1" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="5.7" cy="18.2" r="1.1" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M2.5 14.5l.9-2h1.8l.9 2" fill="none" stroke="currentColor" strokeWidth="1.3" />
 
       {/* Boat — right side of globe */}
-      <path d="M18.5 12.5h4l-.7 2.2h-2.6z" fill="currentColor" stroke="none" />
-      <path d="M20 9.5h2v3h-2z" fill="currentColor" stroke="none" />
-      <path d="M20 9.5l1-1.5 1 1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M19.5 15h3" fill="none" stroke="currentColor" strokeWidth="1" />
+      <path d="M24.5 16.5h5.2l-.9 2.8h-3.4z" fill="currentColor" stroke="none" />
+      <path d="M26.5 12.5h2.6v4h-2.6z" fill="currentColor" stroke="none" />
+      <path d="M26.5 12.5l1.3-2 1.3 2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M25.8 20h4" fill="none" stroke="currentColor" strokeWidth="1.3" />
     </svg>
   );
 }
