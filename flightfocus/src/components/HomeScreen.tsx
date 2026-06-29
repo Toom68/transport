@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plane, Plus, Trash2, MapPin, Clock, Trophy, ArrowRight, X, Award } from 'lucide-react';
+import { Plane, Plus, Trash2, MapPin, Clock, Trophy, ArrowRight, X, Award, Users } from 'lucide-react';
 import { useSavegameStore, MAX_SAVES } from '@/store/savegameStore';
 import { useFlightStore } from '@/store/flightStore';
 import { useSpotifyStore } from '@/store/spotifyStore';
@@ -8,6 +8,7 @@ import { isSpotifyConfigured } from '@/utils/spotify';
 import type { SaveGame } from '@/types/savegame';
 import type { Place } from '@/types/place';
 import { PlaceSearch } from './PlaceSearch';
+import { MultiplayerModal } from './MultiplayerModal';
 
 function TransportLogo({ className }: { className?: string }) {
   return (
@@ -76,6 +77,7 @@ export function HomeScreen() {
   const { setViewMode, setDeparture, setArrival } = useFlightStore();
   const { connected: spotifyConnected, connect: spotifyConnect, disconnect: spotifyDisconnect } = useSpotifyStore();
   const [showNew, setShowNew] = useState(false);
+  const [showMultiplayer, setShowMultiplayer] = useState(false);
 
   const sortedSaves = useMemo(
     () => [...saves].sort((a, b) => b.lastPlayedAt - a.lastPlayedAt),
@@ -191,6 +193,14 @@ export function HomeScreen() {
           {saves.length >= MAX_SAVES && (
             <p className="text-center text-xs text-theme-muted">Delete a journey to start a new one.</p>
           )}
+
+          <button
+            onClick={() => setShowMultiplayer(true)}
+            className="w-full py-3.5 surface-soft hover:border-theme-accent-border text-theme-primary rounded-lg flex items-center justify-center gap-2 transition-all"
+          >
+            <Users className="w-5 h-5 text-theme-accent" />
+            Fly Together
+          </button>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 mt-8">
@@ -214,6 +224,9 @@ export function HomeScreen() {
       <AnimatePresence>
         {showNew && (
           <NewJourneyModal onClose={() => setShowNew(false)} onCreate={handleCreate} />
+        )}
+        {showMultiplayer && (
+          <MultiplayerModal onClose={() => setShowMultiplayer(false)} />
         )}
       </AnimatePresence>
     </div>

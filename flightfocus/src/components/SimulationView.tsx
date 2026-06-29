@@ -12,6 +12,8 @@ import { FocusTimer } from './FocusTimer';
 import { SimulationControls } from './SimulationControls';
 import { JournalPanel } from './JournalPanel';
 import { ArrivalModal } from './ArrivalModal';
+import { GuestControlNotice } from './GuestControlNotice';
+import { useMultiplayerStore } from '@/store/multiplayerStore';
 
 type SidebarTab = 'focus' | 'audio' | 'music' | 'journal';
 
@@ -23,8 +25,9 @@ const TABS: { id: SidebarTab; label: string; icon: typeof Timer }[] = [
 ];
 
 export function SimulationView() {
-  const { tick, isActive, isPaused, phase } = useFlightStore();
+  const { tick, isActive, isPaused, phase, multiplayerMode, applyRemoteState } = useFlightStore();
   const { isMinimalUI } = useFocusStore();
+  const { lastRemoteState } = useMultiplayerStore();
   const lastTimeRef = useRef<number>(performance.now());
   const frameRef = useRef<number>(0);
   const [activeTab, setActiveTab] = useState<SidebarTab>('focus');
@@ -87,6 +90,13 @@ export function SimulationView() {
     };
   }, [isActive, isPaused, tick]);
 
+  // Guest: apply remote state whenever it updates
+  useEffect(() => {
+    if (multiplayerMode === 'guest' && lastRemoteState) {
+      applyRemoteState(lastRemoteState);
+    }
+  }, [multiplayerMode, lastRemoteState, applyRemoteState]);
+
   return (
     <div className="min-h-[100dvh] lg:h-screen flex flex-col lg:flex-row lg:overflow-hidden">
       <div className="flex flex-col p-4 gap-4 min-w-0 lg:flex-1 lg:min-h-0 lg:overflow-hidden">
@@ -115,7 +125,7 @@ export function SimulationView() {
           transition={{ delay: 0.2 }}
           className="w-full lg:w-80 p-5 flex flex-col gap-4 border-t lg:border-t-0 lg:border-l border-theme-border lg:overflow-hidden"
         >
-          <SimulationControls />
+          {multiplayerMode === 'guest' ? <GuestControlNotice /> : <SimulationControls />}
 
           {/* Tab bar */}
           <div className="flex gap-4 border-b border-theme-border shrink-0">

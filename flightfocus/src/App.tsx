@@ -7,6 +7,8 @@ import { HomeScreen } from '@/components/HomeScreen';
 import { GroundedView } from '@/components/GroundedView';
 import { SimulationView } from '@/components/SimulationView';
 import { SpotifyCallback } from '@/components/SpotifyCallback';
+import { MultiplayerSidebar } from '@/components/MultiplayerSidebar';
+import { useMultiplayerStore } from '@/store/multiplayerStore';
 
 function ResumeDialog({ onContinue, onRestart }: { onContinue: () => void; onRestart: () => void }) {
   const info = getPersistedFlightInfo();
@@ -57,9 +59,25 @@ function ResumeDialog({ onContinue, onRestart }: { onContinue: () => void; onRes
 }
 
 export default function App() {
-  const { viewMode, restorePersistedFlight, discardPersistedFlight, setViewMode, departure } = useFlightStore();
+  const { viewMode, restorePersistedFlight, discardPersistedFlight, setViewMode, departure, multiplayerMode, setMultiplayerMode } = useFlightStore();
   const { mode, toggle } = useThemeStore();
+  const { kicked, banned, leaveRoom, connectionState } = useMultiplayerStore();
   const [showResume, setShowResume] = useState(false);
+
+  // Auto-leave when kicked or banned
+  useEffect(() => {
+    if (kicked || banned) {
+      setMultiplayerMode('off');
+      leaveRoom();
+    }
+  }, [kicked, banned]);
+
+  // Reset multiplayer mode when room is closed by host
+  useEffect(() => {
+    if (connectionState === 'disconnected' && multiplayerMode !== 'off') {
+      setMultiplayerMode('off');
+    }
+  }, [connectionState, multiplayerMode]);
 
   useEffect(() => {
     if (hasPersistedFlight() && viewMode === 'home') {
@@ -104,6 +122,11 @@ export default function App() {
       {viewMode === 'home' && <HomeScreen />}
       {viewMode === 'grounded' && <GroundedView />}
       {(viewMode === 'simulation' || viewMode === 'fullscreen') && <SimulationView />}
+
+      {/* Multiplayer sidebar overlay — visible in grounded + simulation */}
+      {multiplayerMode !== 'off' && (viewMode === 'grounded' || viewMode === 'simulation' || viewMode === 'fullscreen') && (
+        <MultiplayerSidebar />
+      )}
 
       <AnimatePresence>
         {showResume && (

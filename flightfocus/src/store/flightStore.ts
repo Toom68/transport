@@ -19,6 +19,8 @@ import {
 } from '@/engine/simulation';
 import { getAltitudeForProgress, getSpeedForProgress, getAltitudeForMode, getSpeedForMode } from '@/engine/navigation';
 import { getTimezoneOffsetMs, getLocalHourInTimezone } from '@/utils/time';
+import { useMultiplayerStore } from '@/store/multiplayerStore';
+import type { SimSyncState, MultiplayerMode } from '@/types/multiplayer';
 
 type TimeMode = 'realtime' | 'custom';
 
@@ -80,6 +82,28 @@ export function hasPersistedFlight(): boolean {
   return loadPersistedFlight() !== null;
 }
 
+function broadcastState(s: FlightStore) {
+  if (!s.departure || !s.arrival || !s.route) return;
+  const syncState: SimSyncState = {
+    departure: s.departure,
+    arrival: s.arrival,
+    route: s.route,
+    journeyType: s.journeyType,
+    phase: s.phase,
+    progress: s.progress,
+    groundElapsed: s.groundElapsed,
+    elapsedTime: s.elapsedTime,
+    timeScale: s.timeScale,
+    isPaused: s.isPaused,
+    departureTimeUTC: s.departureTimeUTC,
+    sessionRealSeconds: s.sessionRealSeconds,
+    cruiseRealSeconds: s.cruiseRealSeconds,
+    departedLocalHour: s.departedLocalHour,
+    timestamp: Date.now(),
+  };
+  useMultiplayerStore.getState().broadcastSimState(syncState);
+}
+
 export function getPersistedFlightInfo(): { fromCity: string; toCity: string; phase: string; savedAt: number } | null {
   const p = loadPersistedFlight();
   if (!p) return null;
@@ -114,7 +138,10 @@ interface FlightStore {
   departedLocalHour: number | null; // local hour at departure airport when the leg began
   arrivalProcessed: boolean;    // guards once-only arrival recording (StrictMode-safe)
   isRouteLoading: boolean;      // true while fetching drive route from API
+  multiplayerMode: MultiplayerMode;
 
+  setMultiplayerMode: (mode: MultiplayerMode) => void;
+  applyRemoteState: (state: SimSyncState) => void;
   setDeparture: (place: Place | null) => void;
   setArrival: (place: Place | null) => void;
   setJourneyType: (journeyType: JourneyType) => void;
@@ -156,7 +183,11 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
   departedLocalHour: null,
   arrivalProcessed: false,
   isRouteLoading: false,
+  multiplayerMode: 'off',
   _lastPersistMs: 0,
+  _lastBroadcastMs: 0,
+
+  setMultiplayerMode: (mode) => set({ multiplayerMode: mode }),
 
   setDeparture: (place) => set({ departure: place }),
   setArrival: (place) => set({ arrival: place }),
@@ -221,10 +252,28 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
         timeRemaining: route.duration,
       },
     });
+
+    // Broadcast flight start to multiplayer guests
+    if (get().multiplayerMode === 'host' && departure && arrival) {
+      const syncState: SimSyncState = {
+        departure, arrival, route, journeyType,
+        phase: 'BOARDING', progress: 0, groundElapsed: 0, elapsedTime: 0,
+        timeScale: get().timeScale, isPaused: false,
+        departureTimeUTC: departureUTC,
+        sessionRealSeconds: 0, cruiseRealSeconds: 0,
+        departedLocalHour: getLocalHourInTimezone(new Date(departureUTC), departure.timezone),
+        timestamp: Date.now(),
+      };
+      useMultiplayerStore.getState().broadcastFlightStarted(syncState);
+    }
   },
 
   pauseFlight: () => {
+    // Guests can't pause
+    if (get().multiplayerMode === 'guest') return;
     set({ isPaused: true });
+    // Broadcast to multiplayer guests
+    if (get().multiplayerMode === 'host') broadcastState(get());
     // Persist immediately on pause so closing the tab preserves state
     const s = get();
     if (s.isActive && s.route && s.departure && s.arrival) {
@@ -254,10 +303,18 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
       });
     }
   },
-  resumeFlight: () => set({ isPaused: false }),
+  resumeFlight: () => {
+    if (get().multiplayerMode === 'guest') return;
+    set({ isPaused: false });
+    if (get().multiplayerMode === 'host') broadcastState(get());
+  },
   markArrivalProcessed: () => set({ arrivalProcessed: true }),
 
   stopFlight: () => {
+    // Broadcast flight ended before clearing
+    if (get().multiplayerMode === 'host') {
+      useMultiplayerStore.getState().broadcastFlightEnded();
+    }
     clearPersistedFlight();
     set({
       route: null,
@@ -296,12 +353,19 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
     });
   },
 
-  setTimeScale: (scale) => set({ timeScale: scale }),
+  setTimeScale: (scale) => {
+    if (get().multiplayerMode === 'guest') return;
+    set({ timeScale: scale });
+    if (get().multiplayerMode === 'host') broadcastState(get());
+  },
   setViewMode: (mode) => set({ viewMode: mode }),
   setTimeMode: (mode) => set({ timeMode: mode }),
   setCustomHour: (hour) => set({ customHour: hour }),
 
   tick: (deltaSeconds) => {
+    // Guests don't tick — sim state comes from host via realtime
+    if (get().multiplayerMode === 'guest') return;
+
     const {
       isActive, isPaused, timeScale, elapsedTime, route,
       groundElapsed, sessionRealSeconds, cruiseRealSeconds, departureTimeUTC,
@@ -393,6 +457,14 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
       set({ phase: 'ARRIVED', isPaused: true });
     }
 
+    // Throttled multiplayer broadcast — every ~1s
+    const broadcastNow = Date.now();
+    const bState = get();
+    if (bState.multiplayerMode === 'host' && broadcastNow - (bState as any)._lastBroadcastMs > 1000) {
+      (bState as any)._lastBroadcastMs = broadcastNow;
+      broadcastState(bState);
+    }
+
     // Throttled persistence — save every ~2s so tab close preserves state
     const now = Date.now();
     const state = get();
@@ -458,5 +530,74 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
 
   discardPersistedFlight: () => {
     clearPersistedFlight();
+  },
+
+  applyRemoteState: (state) => {
+    // Only guests apply remote state
+    if (get().multiplayerMode !== 'guest') return;
+
+    const { route } = get();
+    const hasRoute = !!route && route.departure.id === state.departure.id;
+
+    if (!hasRoute) {
+      // First update or new route from host — set everything
+      const routePoint = getPositionAtProgress(state.route, state.progress);
+      const altitude = getAltitudeForMode(state.progress, state.journeyType);
+      const speed = getSpeedForMode(state.progress, state.journeyType);
+      set({
+        departure: state.departure,
+        arrival: state.arrival,
+        route: state.route,
+        journeyType: state.journeyType,
+        phase: state.phase,
+        progress: state.progress,
+        elapsedTime: state.elapsedTime,
+        groundElapsed: state.groundElapsed,
+        timeScale: state.timeScale,
+        isPaused: state.isPaused,
+        isActive: true,
+        viewMode: 'simulation',
+        departureTimeUTC: state.departureTimeUTC,
+        simulationDate: new Date(state.departureTimeUTC + (state.groundElapsed + state.elapsedTime) * 1000),
+        sessionRealSeconds: state.sessionRealSeconds,
+        cruiseRealSeconds: state.cruiseRealSeconds,
+        departedLocalHour: state.departedLocalHour,
+        arrivalProcessed: state.phase === 'ARRIVED',
+        position: {
+          lat: routePoint.lat,
+          lng: routePoint.lng,
+          altitude,
+          speed,
+          heading: routePoint.bearing,
+          progress: state.progress,
+          distanceRemaining: state.route.distance * (1 - state.progress),
+          timeRemaining: Math.max(0, state.route.duration - state.elapsedTime),
+        },
+      });
+    } else {
+      // Subsequent updates — just advance progress/phase
+      const routePoint = getPositionAtProgress(state.route, state.progress);
+      const altitude = getAltitudeForMode(state.progress, state.journeyType);
+      const speed = getSpeedForMode(state.progress, state.journeyType);
+      set({
+        phase: state.phase,
+        progress: state.progress,
+        elapsedTime: state.elapsedTime,
+        groundElapsed: state.groundElapsed,
+        timeScale: state.timeScale,
+        isPaused: state.isPaused,
+        simulationDate: new Date(state.departureTimeUTC + (state.groundElapsed + state.elapsedTime) * 1000),
+        position: {
+          lat: routePoint.lat,
+          lng: routePoint.lng,
+          altitude,
+          speed,
+          heading: routePoint.bearing,
+          progress: state.progress,
+          distanceRemaining: state.route.distance * (1 - state.progress),
+          timeRemaining: Math.max(0, state.route.duration - state.elapsedTime),
+        },
+      });
+    }
   },
 }));
