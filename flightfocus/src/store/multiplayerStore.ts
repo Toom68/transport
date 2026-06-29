@@ -104,6 +104,33 @@ function setupChannel(
     }
     useMultiplayerStore.getState()._onEvent({ type: 'player_banned', playerId });
   });
+  ch.on('broadcast', { event: 'state_request' }, async () => {
+    // Only host responds — sends current sim state to the requesting guest
+    const mpState = useMultiplayerStore.getState();
+    if (mpState.role !== 'host') return;
+    const { useFlightStore } = await import('@/store/flightStore');
+    const fs = useFlightStore.getState();
+    if (fs.departure && fs.arrival && fs.route) {
+      const syncState: SimSyncState = {
+        departure: fs.departure,
+        arrival: fs.arrival,
+        route: fs.route,
+        journeyType: fs.journeyType,
+        phase: fs.phase,
+        progress: fs.progress,
+        groundElapsed: fs.groundElapsed,
+        elapsedTime: fs.elapsedTime,
+        timeScale: fs.timeScale,
+        isPaused: fs.isPaused,
+        departureTimeUTC: fs.departureTimeUTC,
+        sessionRealSeconds: fs.sessionRealSeconds,
+        cruiseRealSeconds: fs.cruiseRealSeconds,
+        departedLocalHour: fs.departedLocalHour,
+        timestamp: Date.now(),
+      };
+      mpState.broadcastSimState(syncState);
+    }
+  });
   ch.on('presence', { event: 'sync' }, () => {
     useMultiplayerStore.getState()._onPresenceSync();
   });
@@ -206,26 +233,13 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
 
     setupChannel(upperCode, sessionId, name, false);
 
-    // If room has a route already (mid-flight), apply it as initial state
+    // If room has a route already (mid-flight), request current state from host
     if (data.route && data.departure && data.arrival) {
-      const initialState: SimSyncState = {
-        departure: data.departure,
-        arrival: data.arrival,
-        route: data.route,
-        journeyType: data.journey_type ?? 'fly',
-        phase: 'CRUISE',
-        progress: 0,
-        groundElapsed: 0,
-        elapsedTime: 0,
-        timeScale: 1,
-        isPaused: data.is_paused,
-        departureTimeUTC: Date.now(),
-        sessionRealSeconds: 0,
-        cruiseRealSeconds: 0,
-        departedLocalHour: null,
-        timestamp: Date.now(),
-      };
-      set({ lastRemoteState: initialState });
+      // Send state_request — host will respond with current sim state
+      setTimeout(() => {
+        const channel = supabase.channel(`room:${upperCode}`);
+        channel.send({ type: 'broadcast', event: 'state_request', payload: {} });
+      }, 500); // small delay to ensure subscription is ready
     }
 
     set({

@@ -13,7 +13,6 @@ import { SimulationControls } from './SimulationControls';
 import { JournalPanel } from './JournalPanel';
 import { ArrivalModal } from './ArrivalModal';
 import { GuestControlNotice } from './GuestControlNotice';
-import { useMultiplayerStore } from '@/store/multiplayerStore';
 
 type SidebarTab = 'focus' | 'audio' | 'music' | 'journal';
 
@@ -25,9 +24,8 @@ const TABS: { id: SidebarTab; label: string; icon: typeof Timer }[] = [
 ];
 
 export function SimulationView() {
-  const { tick, isActive, isPaused, phase, multiplayerMode, applyRemoteState } = useFlightStore();
+  const { tick, isActive, isPaused, phase, multiplayerMode } = useFlightStore();
   const { isMinimalUI } = useFocusStore();
-  const { lastRemoteState } = useMultiplayerStore();
   const lastTimeRef = useRef<number>(performance.now());
   const frameRef = useRef<number>(0);
   const [activeTab, setActiveTab] = useState<SidebarTab>('focus');
@@ -89,13 +87,6 @@ export function SimulationView() {
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [isActive, isPaused, tick]);
-
-  // Guest: apply remote state whenever it updates
-  useEffect(() => {
-    if (multiplayerMode === 'guest' && lastRemoteState) {
-      applyRemoteState(lastRemoteState);
-    }
-  }, [multiplayerMode, lastRemoteState, applyRemoteState]);
 
   return (
     <div className="min-h-[100dvh] lg:h-screen flex flex-col lg:flex-row lg:overflow-hidden">

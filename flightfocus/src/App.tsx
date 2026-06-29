@@ -61,8 +61,16 @@ function ResumeDialog({ onContinue, onRestart }: { onContinue: () => void; onRes
 export default function App() {
   const { viewMode, restorePersistedFlight, discardPersistedFlight, setViewMode, departure, multiplayerMode, setMultiplayerMode } = useFlightStore();
   const { mode, toggle } = useThemeStore();
-  const { kicked, banned, leaveRoom, connectionState } = useMultiplayerStore();
+  const { kicked, banned, leaveRoom, connectionState, lastRemoteState } = useMultiplayerStore();
+  const { applyRemoteState } = useFlightStore();
   const [showResume, setShowResume] = useState(false);
+
+  // Guest: apply remote state whenever it updates (works from any view)
+  useEffect(() => {
+    if (multiplayerMode === 'guest' && lastRemoteState) {
+      applyRemoteState(lastRemoteState);
+    }
+  }, [multiplayerMode, lastRemoteState, applyRemoteState]);
 
   // Auto-leave when kicked or banned
   useEffect(() => {
