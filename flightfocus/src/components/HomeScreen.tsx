@@ -11,27 +11,31 @@ import { PlaceSearch } from './PlaceSearch';
 
 function TransportLogo({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {/* Globe — centered */}
-      <circle cx="16" cy="16" r="6.5" />
-      <path d="M9.5 16h13" />
-      <path d="M16 9.5c3.2 3.2 3.2 9.8 0 13" />
-      <path d="M16 9.5c-3.2 3.2 -3.2 9.8 0 13" />
+    <svg className={className} viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      {/* Globe — centered, doubled size */}
+      <circle cx="16" cy="16" r="13" />
+      <path d="M3 16h26" />
+      <path d="M16 3c6.5 6.5 6.5 19.5 0 26" />
+      <path d="M16 3c-6.5 6.5 -6.5 19.5 0 26" />
 
-      {/* Plane — top center, above globe */}
-      <path d="M16 1.5l-1.6 4-5.2 1.6v1.3l5.2-.8v3.7l-1.6 1.3v1l3.2-.8 3.2.8v-1l-1.6-1.3V7.6l5.2.8V7.1L17.6 5.5z" fill="currentColor" stroke="none" />
+      {/* Plane — top center, on the globe */}
+      <path d="M16 4l-1.2 2.5-3 1v.8l3-.5v2l-.8 .8v.6l2-.5 2 .5v-.6l-.8-.8v-2l3 .5v-.8l-3-1z" fill="currentColor" stroke="none" />
 
-      {/* Car — left side of globe */}
-      <path d="M1.5 16.5l.7-2 1.3-.9h2.6l1.3.9.7 2v1.6H1.5z" fill="currentColor" stroke="none" />
-      <circle cx="3" cy="18.2" r="1.1" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="5.7" cy="18.2" r="1.1" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M2.5 14.5l.9-2h1.8l.9 2" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      {/* Car — left side, on the globe (1.5x) */}
+      <g transform="translate(0, 0)">
+        <path d="M2 18l.6-2.2 1.5-1h3l1.5 1 .6 2.2v1.8H2z" fill="currentColor" stroke="none" />
+        <circle cx="3.5" cy="19.8" r="1.2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+        <circle cx="6.7" cy="19.8" r="1.2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M3 15.8l1-2.2h2.2l1 2.2" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      </g>
 
-      {/* Boat — right side of globe */}
-      <path d="M24.5 16.5h5.2l-.9 2.8h-3.4z" fill="currentColor" stroke="none" />
-      <path d="M26.5 12.5h2.6v4h-2.6z" fill="currentColor" stroke="none" />
-      <path d="M26.5 12.5l1.3-2 1.3 2" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M25.8 20h4" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      {/* Boat — right side, on the globe (1.5x) */}
+      <g transform="translate(0, 0)">
+        <path d="M22.5 18h6l-1 3.2h-4z" fill="currentColor" stroke="none" />
+        <path d="M24.8 13.5h3v4.5h-3z" fill="currentColor" stroke="none" />
+        <path d="M24.8 13.5l1.5-2.3 1.5 2.3" fill="none" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M23.5 22h5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      </g>
     </svg>
   );
 }
