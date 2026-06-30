@@ -140,6 +140,12 @@ interface FlightStore {
   isRouteLoading: boolean;      // true while fetching drive route from API
   multiplayerMode: MultiplayerMode;
 
+  // Guest interpolation state
+  _remoteFromProgress: number;
+  _remoteToProgress: number;
+  _remoteUpdateTime: number;
+  _remoteIsPaused: boolean;
+
   setMultiplayerMode: (mode: MultiplayerMode) => void;
   applyRemoteState: (state: SimSyncState) => void;
   setDeparture: (place: Place | null) => void;
@@ -186,6 +192,10 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
   multiplayerMode: 'off',
   _lastPersistMs: 0,
   _lastBroadcastMs: 0,
+  _remoteFromProgress: 0,
+  _remoteToProgress: 0,
+  _remoteUpdateTime: 0,
+  _remoteIsPaused: false,
 
   setMultiplayerMode: (mode) => set({ multiplayerMode: mode }),
 
@@ -363,8 +373,42 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
   setCustomHour: (hour) => set({ customHour: hour }),
 
   tick: (deltaSeconds) => {
-    // Guests don't tick — sim state comes from host via realtime
-    if (get().multiplayerMode === 'guest') return;
+    // Guests interpolate position toward last received host state
+    if (get().multiplayerMode === 'guest') {
+      const s = get();
+      if (!s.isActive || !s.route) return;
+
+      // If host is paused, hold position
+      if (s._remoteIsPaused) return;
+
+      const now = Date.now();
+      const elapsed = now - s._remoteUpdateTime;
+      // Interpolate over ~1s (the host broadcast interval)
+      const INTERP_MS = 1000;
+      const t = Math.min(1, elapsed / INTERP_MS);
+      // Ease-in-out for smoother movement
+      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const interpProgress = s._remoteFromProgress + (s._remoteToProgress - s._remoteFromProgress) * eased;
+
+      const routePoint = getPositionAtProgress(s.route, interpProgress);
+      const altitude = getAltitudeForMode(interpProgress, s.journeyType);
+      const speed = getSpeedForMode(interpProgress, s.journeyType);
+
+      set({
+        progress: interpProgress,
+        position: {
+          lat: routePoint.lat,
+          lng: routePoint.lng,
+          altitude,
+          speed,
+          heading: routePoint.bearing,
+          progress: interpProgress,
+          distanceRemaining: s.route.distance * (1 - interpProgress),
+          timeRemaining: Math.max(0, s.route.duration - s.elapsedTime),
+        },
+      });
+      return;
+    }
 
     const {
       isActive, isPaused, timeScale, elapsedTime, route,
@@ -536,11 +580,11 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
     // Only guests apply remote state
     if (get().multiplayerMode !== 'guest') return;
 
-    const { route } = get();
+    const { route, progress: currentProgress } = get();
     const hasRoute = !!route && route.departure.id === state.departure.id;
 
     if (!hasRoute) {
-      // First update or new route from host — set everything
+      // First update or new route from host — set everything and snap to position
       const routePoint = getPositionAtProgress(state.route, state.progress);
       const altitude = getAltitudeForMode(state.progress, state.journeyType);
       const speed = getSpeedForMode(state.progress, state.journeyType);
@@ -573,30 +617,30 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
           distanceRemaining: state.route.distance * (1 - state.progress),
           timeRemaining: Math.max(0, state.route.duration - state.elapsedTime),
         },
+        // Interpolation: start from current position, target the host's progress
+        _remoteFromProgress: state.progress,
+        _remoteToProgress: state.progress,
+        _remoteUpdateTime: Date.now(),
+        _remoteIsPaused: state.isPaused,
       });
     } else {
-      // Subsequent updates — just advance progress/phase
-      const routePoint = getPositionAtProgress(state.route, state.progress);
-      const altitude = getAltitudeForMode(state.progress, state.journeyType);
-      const speed = getSpeedForMode(state.progress, state.journeyType);
+      // Subsequent updates — store interpolation target, tick() will lerp
       set({
         phase: state.phase,
-        progress: state.progress,
         elapsedTime: state.elapsedTime,
         groundElapsed: state.groundElapsed,
         timeScale: state.timeScale,
         isPaused: state.isPaused,
         simulationDate: new Date(state.departureTimeUTC + (state.groundElapsed + state.elapsedTime) * 1000),
-        position: {
-          lat: routePoint.lat,
-          lng: routePoint.lng,
-          altitude,
-          speed,
-          heading: routePoint.bearing,
-          progress: state.progress,
-          distanceRemaining: state.route.distance * (1 - state.progress),
-          timeRemaining: Math.max(0, state.route.duration - state.elapsedTime),
-        },
+        sessionRealSeconds: state.sessionRealSeconds,
+        cruiseRealSeconds: state.cruiseRealSeconds,
+        departedLocalHour: state.departedLocalHour,
+        arrivalProcessed: state.phase === 'ARRIVED',
+        // Interpolation: lerp from current progress to host's target over ~1s
+        _remoteFromProgress: currentProgress,
+        _remoteToProgress: state.progress,
+        _remoteUpdateTime: Date.now(),
+        _remoteIsPaused: state.isPaused,
       });
     }
   },
