@@ -13,10 +13,10 @@ import { MultiplayerModal } from './MultiplayerModal';
 function TransportLogo({ className }: { className?: string }) {
   return (
     <div className={className}>
-      <div className="relative w-full h-full flex items-center justify-center">
-        <Plane className="absolute top-0 left-1/2 -translate-x-1/2 w-7 h-7 text-theme-accent" />
-        <Car className="absolute bottom-1 left-0 w-6 h-6 text-theme-accent opacity-80" />
-        <Anchor className="absolute bottom-1 right-0 w-6 h-6 text-theme-accent opacity-80" />
+      <div className="relative w-full h-full flex items-center justify-center rounded-full border-2 border-theme-accent-border">
+        <Plane className="absolute -top-1 left-1/2 -translate-x-1/2 w-7 h-7 text-theme-accent" />
+        <Car className="absolute bottom-0 left-1 w-6 h-6 text-theme-accent opacity-80" />
+        <Anchor className="absolute bottom-0 right-1 w-6 h-6 text-theme-accent opacity-80" />
       </div>
     </div>
   );
