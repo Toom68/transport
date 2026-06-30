@@ -9,6 +9,7 @@ import { SimulationView } from '@/components/SimulationView';
 import { SpotifyCallback } from '@/components/SpotifyCallback';
 import { MultiplayerSidebar } from '@/components/MultiplayerSidebar';
 import { useMultiplayerStore } from '@/store/multiplayerStore';
+import type { SimSyncState } from '@/types/multiplayer';
 
 function ResumeDialog({ onContinue, onRestart }: { onContinue: () => void; onRestart: () => void }) {
   const info = getPersistedFlightInfo();
@@ -36,6 +37,12 @@ function ResumeDialog({ onContinue, onRestart }: { onContinue: () => void; onRes
         <p className="text-xs text-theme-secondary mb-5">
           You have a flight in progress ({phaseLabel} phase). Continue where you left off, or start fresh from your current airport.
         </p>
+
+        {info.wasMultiplayerHost && (
+          <p className="text-xs text-theme-accent mb-4 p-2.5 surface-soft rounded-lg">
+            A new room code will be generated so guests can rejoin.
+          </p>
+        )}
 
         <div className="space-y-2">
           <button
@@ -93,9 +100,43 @@ export default function App() {
     }
   }, []);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
+    const info = getPersistedFlightInfo();
     restorePersistedFlight();
     setShowResume(false);
+
+    // If this was a multiplayer host flight, create a new room and broadcast current state
+    if (info?.wasMultiplayerHost) {
+      try {
+        const { createRoom, broadcastFlightStarted } = useMultiplayerStore.getState();
+        await createRoom();
+        setMultiplayerMode('host');
+        // Broadcast the restored state to any guests who join
+        const fs = useFlightStore.getState();
+        if (fs.departure && fs.arrival && fs.route) {
+          const syncState: SimSyncState = {
+            departure: fs.departure,
+            arrival: fs.arrival,
+            route: fs.route,
+            journeyType: fs.journeyType,
+            phase: fs.phase,
+            progress: fs.progress,
+            groundElapsed: fs.groundElapsed,
+            elapsedTime: fs.elapsedTime,
+            timeScale: fs.timeScale,
+            isPaused: true,
+            departureTimeUTC: fs.departureTimeUTC,
+            sessionRealSeconds: fs.sessionRealSeconds,
+            cruiseRealSeconds: fs.cruiseRealSeconds,
+            departedLocalHour: fs.departedLocalHour,
+            timestamp: Date.now(),
+          };
+          broadcastFlightStarted(syncState);
+        }
+      } catch (e) {
+        console.error('Failed to recreate multiplayer room:', e);
+      }
+    }
   };
 
   const handleRestart = () => {

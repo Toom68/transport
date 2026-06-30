@@ -49,6 +49,7 @@ interface PersistedFlight {
   cruiseRealSeconds: number;
   departedLocalHour: number | null;
   arrivalProcessed: boolean;
+  wasMultiplayerHost: boolean;
   savedAt: number;
 }
 
@@ -104,7 +105,7 @@ function broadcastState(s: FlightStore) {
   useMultiplayerStore.getState().broadcastSimState(syncState);
 }
 
-export function getPersistedFlightInfo(): { fromCity: string; toCity: string; phase: string; savedAt: number } | null {
+export function getPersistedFlightInfo(): { fromCity: string; toCity: string; phase: string; savedAt: number; wasMultiplayerHost: boolean } | null {
   const p = loadPersistedFlight();
   if (!p) return null;
   return {
@@ -112,6 +113,7 @@ export function getPersistedFlightInfo(): { fromCity: string; toCity: string; ph
     toCity: p.arrival.city,
     phase: p.phase,
     savedAt: p.savedAt,
+    wasMultiplayerHost: p.wasMultiplayerHost ?? false,
   };
 }
 
@@ -140,10 +142,10 @@ interface FlightStore {
   isRouteLoading: boolean;      // true while fetching drive route from API
   multiplayerMode: MultiplayerMode;
 
-  // Guest interpolation state
-  _remoteFromProgress: number;
-  _remoteToProgress: number;
-  _remoteUpdateTime: number;
+  // Guest extrapolation state
+  _remoteProgress: number;
+  _remoteVelocity: number; // progress per second
+  _remoteRecvTime: number;
   _remoteIsPaused: boolean;
 
   setMultiplayerMode: (mode: MultiplayerMode) => void;
@@ -192,9 +194,9 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
   multiplayerMode: 'off',
   _lastPersistMs: 0,
   _lastBroadcastMs: 0,
-  _remoteFromProgress: 0,
-  _remoteToProgress: 0,
-  _remoteUpdateTime: 0,
+  _remoteProgress: 0,
+  _remoteVelocity: 0,
+  _remoteRecvTime: 0,
   _remoteIsPaused: false,
 
   setMultiplayerMode: (mode) => set({ multiplayerMode: mode }),
@@ -309,6 +311,7 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
         cruiseRealSeconds: s.cruiseRealSeconds,
         departedLocalHour: s.departedLocalHour,
         arrivalProcessed: s.arrivalProcessed,
+        wasMultiplayerHost: s.multiplayerMode === 'host',
         savedAt: Date.now(),
       });
     }
@@ -373,7 +376,7 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
   setCustomHour: (hour) => set({ customHour: hour }),
 
   tick: (deltaSeconds) => {
-    // Guests interpolate position toward last received host state
+    // Guests extrapolate position using velocity from host updates
     if (get().multiplayerMode === 'guest') {
       const s = get();
       if (!s.isActive || !s.route) return;
@@ -382,28 +385,24 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
       if (s._remoteIsPaused) return;
 
       const now = Date.now();
-      const elapsed = now - s._remoteUpdateTime;
-      // Interpolate over ~1s (the host broadcast interval)
-      const INTERP_MS = 1000;
-      const t = Math.min(1, elapsed / INTERP_MS);
-      // Ease-in-out for smoother movement
-      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      const interpProgress = s._remoteFromProgress + (s._remoteToProgress - s._remoteFromProgress) * eased;
+      const elapsedSec = (now - s._remoteRecvTime) / 1000;
+      // Extrapolate: host's last progress + estimated velocity * time since update
+      const extrapProgress = Math.min(1, Math.max(0, s._remoteProgress + s._remoteVelocity * elapsedSec));
 
-      const routePoint = getPositionAtProgress(s.route, interpProgress);
-      const altitude = getAltitudeForMode(interpProgress, s.journeyType);
-      const speed = getSpeedForMode(interpProgress, s.journeyType);
+      const routePoint = getPositionAtProgress(s.route, extrapProgress);
+      const altitude = getAltitudeForMode(extrapProgress, s.journeyType);
+      const speed = getSpeedForMode(extrapProgress, s.journeyType);
 
       set({
-        progress: interpProgress,
+        progress: extrapProgress,
         position: {
           lat: routePoint.lat,
           lng: routePoint.lng,
           altitude,
           speed,
           heading: routePoint.bearing,
-          progress: interpProgress,
-          distanceRemaining: s.route.distance * (1 - interpProgress),
+          progress: extrapProgress,
+          distanceRemaining: s.route.distance * (1 - extrapProgress),
           timeRemaining: Math.max(0, s.route.duration - s.elapsedTime),
         },
       });
@@ -537,6 +536,7 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
           cruiseRealSeconds: newCruiseReal,
           departedLocalHour: state.departedLocalHour,
           arrivalProcessed: state.arrivalProcessed,
+          wasMultiplayerHost: state.multiplayerMode === 'host',
           savedAt: now,
         });
       }
@@ -580,7 +580,7 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
     // Only guests apply remote state
     if (get().multiplayerMode !== 'guest') return;
 
-    const { route, progress: currentProgress } = get();
+    const { route } = get();
     const hasRoute = !!route && route.departure.id === state.departure.id;
 
     if (!hasRoute) {
@@ -617,14 +617,20 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
           distanceRemaining: state.route.distance * (1 - state.progress),
           timeRemaining: Math.max(0, state.route.duration - state.elapsedTime),
         },
-        // Interpolation: start from current position, target the host's progress
-        _remoteFromProgress: state.progress,
-        _remoteToProgress: state.progress,
-        _remoteUpdateTime: Date.now(),
+        // Extrapolation: start at host's progress, velocity unknown yet
+        _remoteProgress: state.progress,
+        _remoteVelocity: 0,
+        _remoteRecvTime: Date.now(),
         _remoteIsPaused: state.isPaused,
       });
     } else {
-      // Subsequent updates — store interpolation target, tick() will lerp
+      // Subsequent updates — compute velocity from delta and store new target
+      const now = Date.now();
+      const oldState = get();
+      const dt = (now - oldState._remoteRecvTime) / 1000;
+      const dProgress = state.progress - oldState._remoteProgress;
+      const velocity = dt > 0 ? dProgress / dt : 0;
+
       set({
         phase: state.phase,
         elapsedTime: state.elapsedTime,
@@ -636,10 +642,10 @@ export const useFlightStore = create<FlightStore>((set, get) => ({
         cruiseRealSeconds: state.cruiseRealSeconds,
         departedLocalHour: state.departedLocalHour,
         arrivalProcessed: state.phase === 'ARRIVED',
-        // Interpolation: lerp from current progress to host's target over ~1s
-        _remoteFromProgress: currentProgress,
-        _remoteToProgress: state.progress,
-        _remoteUpdateTime: Date.now(),
+        // Extrapolation: store new progress + velocity for continuous motion
+        _remoteProgress: state.progress,
+        _remoteVelocity: velocity,
+        _remoteRecvTime: now,
         _remoteIsPaused: state.isPaused,
       });
     }

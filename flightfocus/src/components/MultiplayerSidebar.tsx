@@ -53,7 +53,7 @@ export function MultiplayerSidebar() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -60, opacity: 0 }}
             onClick={() => setCollapsed(false)}
-            className="fixed left-0 top-1/2 -translate-y-1/2 z-[2000] glass-panel border-r border-t border-b border-theme-border rounded-r-xl p-2 flex flex-col items-center gap-1"
+            className="fixed left-0 top-1/2 -translate-y-1/2 z-[2000] glass-panel border-r border-t border-b border-theme-border rounded-r-xl p-2 flex flex-col items-center gap-1 bg-theme-panel/80 backdrop-blur-md"
           >
             <ChevronRight className="w-4 h-4 text-theme-secondary" />
             <span className="text-[10px] font-mono text-theme-accent tracking-wider [writing-mode:vertical-rl]">{roomCode}</span>
@@ -69,12 +69,12 @@ export function MultiplayerSidebar() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -300, opacity: 0 }}
             transition={{ type: 'spring', damping: 24, stiffness: 200 }}
-            className="fixed left-0 top-0 bottom-0 z-[2000] w-[280px] glass-panel border-r border-theme-border flex flex-col"
+            className="fixed left-0 top-0 bottom-0 z-[2000] w-[280px] glass-panel border-r border-theme-border flex flex-col bg-theme-panel/80 backdrop-blur-md"
           >
             {/* Collapse button */}
             <button
               onClick={() => setCollapsed(true)}
-              className="absolute -right-6 top-1/2 -translate-y-1/2 glass-panel border border-theme-border rounded-r-lg p-1.5"
+              className="absolute -right-6 top-1/2 -translate-y-1/2 glass-panel border border-theme-border rounded-r-lg p-1.5 bg-theme-panel/80 backdrop-blur-md"
             >
               <ChevronLeft className="w-4 h-4 text-theme-secondary" />
             </button>
