@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Users, ArrowRight, X, Loader2, AlertCircle } from 'lucide-react';
+import { Users, ArrowRight, X, Loader2, AlertCircle, MapPin } from 'lucide-react';
 import { useMultiplayerStore } from '@/store/multiplayerStore';
 import { useFlightStore } from '@/store/flightStore';
+import { useSavegameStore } from '@/store/savegameStore';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { PlaceSearch } from './PlaceSearch';
+import type { Place } from '@/types/place';
 
 interface MultiplayerModalProps {
   onClose: () => void;
@@ -11,19 +14,28 @@ interface MultiplayerModalProps {
 
 export function MultiplayerModal({ onClose }: MultiplayerModalProps) {
   const { setPlayerName, createRoom, joinRoom, playerName } = useMultiplayerStore();
-  const { setMultiplayerMode, setViewMode } = useFlightStore();
+  const { setMultiplayerMode, setViewMode, setDeparture, setArrival } = useFlightStore();
+  const { createSave } = useSavegameStore();
   const [mode, setMode] = useState<'choose' | 'create' | 'join'>('choose');
   const [name, setName] = useState(playerName);
   const [joinCode, setJoinCode] = useState('');
+  const [origin, setOrigin] = useState<Place | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleCreate = async () => {
+    if (!origin) {
+      setError('Please choose a starting airport');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       setPlayerName(name.trim() || 'Host');
       const code = await createRoom();
+      createSave(`${name.trim() || 'Host'}'s Room`, origin);
+      setDeparture(origin);
+      setArrival(null);
       setMultiplayerMode('host');
       setViewMode('grounded');
       onClose();
@@ -167,6 +179,26 @@ export function MultiplayerModal({ onClose }: MultiplayerModalProps) {
               />
             </div>
 
+            {mode === 'create' && (
+              <div>
+                <label className="block text-xs font-medium text-theme-secondary uppercase tracking-wider mb-2">
+                  Starting airport
+                </label>
+                <PlaceSearch
+                  label="Starting airport"
+                  value={origin}
+                  onChange={setOrigin}
+                  placeholder="Search for an airport..."
+                />
+                {origin && (
+                  <div className="flex items-center gap-2 mt-2 p-2.5 surface-soft rounded-lg">
+                    <MapPin className="w-3.5 h-3.5 text-theme-accent shrink-0" />
+                    <span className="text-xs text-theme-secondary truncate">{origin.city}, {origin.country}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {mode === 'join' && (
               <div>
                 <label className="block text-xs font-medium text-theme-secondary uppercase tracking-wider mb-2">
@@ -198,7 +230,7 @@ export function MultiplayerModal({ onClose }: MultiplayerModalProps) {
               </button>
               <button
                 onClick={mode === 'create' ? handleCreate : handleJoin}
-                disabled={loading || (mode === 'join' && joinCode.length !== 6)}
+                disabled={loading || (mode === 'join' && joinCode.length !== 6) || (mode === 'create' && !origin)}
                 className="flex-1 py-3.5 btn-primary rounded-lg disabled:bg-theme-disabled-bg disabled:text-theme-muted disabled:shadow-none flex items-center justify-center gap-2"
               >
                 {loading ? (
