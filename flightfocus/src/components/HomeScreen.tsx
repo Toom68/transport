@@ -14,9 +14,9 @@ function TransportLogo({ className }: { className?: string }) {
   return (
     <div className={className}>
       <div className="relative w-full h-full rounded-full border-4 border-theme-accent-border">
-        <Plane className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-7 h-7 text-theme-accent bg-theme-panel rounded-full p-0.5" />
-        <Car className="absolute bottom-0 left-0 -translate-x-1/2 translate-y-1/2 w-6 h-6 text-theme-accent opacity-80" />
-        <Anchor className="absolute bottom-0 right-0 translate-x-1/2 translate-y-1/2 w-6 h-6 text-theme-accent opacity-80" />
+        <Plane className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-7 h-7 text-theme-accent bg-theme-panel p-0.5" />
+        <Car className="absolute bottom-[13%] left-[13%] -translate-x-1/2 translate-y-1/2 w-6 h-6 text-theme-accent opacity-80" />
+        <Anchor className="absolute bottom-[13%] right-[13%] translate-x-1/2 translate-y-1/2 w-6 h-6 text-theme-accent opacity-80" />
       </div>
     </div>
   );
