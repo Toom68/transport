@@ -13,16 +13,31 @@ import { MultiplayerModal } from './MultiplayerModal';
 function TransportLogo({ className }: { className?: string }) {
   return (
     <div className={className}>
-      <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-        {/* Flowchart lines connecting 3 nodes */}
-        <line x1="32" y1="14" x2="16" y2="48" stroke="currentColor" strokeWidth="2" className="text-theme-accent-border" />
-        <line x1="32" y1="14" x2="48" y2="48" stroke="currentColor" strokeWidth="2" className="text-theme-accent-border" />
-        <line x1="16" y1="48" x2="48" y2="48" stroke="currentColor" strokeWidth="2" className="text-theme-accent-border" />
+      <svg viewBox="0 0 64 64" className="w-full h-full" fill="none">
+        {/* Ring */}
+        <circle cx="32" cy="32" r="26" stroke="currentColor" strokeWidth="2.5" className="text-theme-accent-border" />
+        {/* Background patches to hide ring behind icons */}
+        <circle cx="32" cy="6" r="7" fill="var(--color-panel-solid, #24211c)" />
+        <circle cx="9.4" cy="45" r="6" fill="var(--color-panel-solid, #24211c)" />
+        <circle cx="54.6" cy="45" r="6" fill="var(--color-panel-solid, #24211c)" />
+        {/* Plane — top (90deg) */}
+        <g transform="translate(32, 6)">
+          <path d="M0-5l-1.5 3-4 1.2v1l4-.6v2.4l-1 .8v.6l2.5-.5 2.5.5v-.6l-1-.8V-.6l4 .6v-1L1.5-2z" fill="currentColor" className="text-theme-accent" />
+        </g>
+        {/* Car — bottom left (210deg) */}
+        <g transform="translate(9.4, 45) scale(0.85)">
+          <path d="M-5 0l.5-2 1.5-1h3l1.5 1 .5 2v2h-7z" fill="currentColor" className="text-theme-accent" />
+          <circle cx="-3" cy="2.5" r="1.2" fill="none" stroke="currentColor" strokeWidth="1" className="text-theme-accent" />
+          <circle cx="1" cy="2.5" r="1.2" fill="none" stroke="currentColor" strokeWidth="1" className="text-theme-accent" />
+        </g>
+        {/* Anchor — bottom right (330deg) */}
+        <g transform="translate(54.6, 45) scale(0.85)">
+          <circle cx="0" cy="-4" r="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-theme-accent" />
+          <line x1="0" y1="-2.5" x2="0" y2="3" stroke="currentColor" strokeWidth="1.5" className="text-theme-accent" />
+          <line x1="-2.5" y1="0" x2="2.5" y2="0" stroke="currentColor" strokeWidth="1.5" className="text-theme-accent" />
+          <path d="M-3.5 3 Q-3.5 5.5 0 5.5 Q3.5 5.5 3.5 3" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-theme-accent" />
+        </g>
       </svg>
-      {/* Icons on the line nodes with bg to hide line behind */}
-      <Plane className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-7 h-7 text-theme-accent bg-theme-panel p-0.5" />
-      <Car className="absolute bottom-0 left-0 -translate-x-1/4 translate-y-1/4 w-6 h-6 text-theme-accent bg-theme-panel p-0.5" />
-      <Anchor className="absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4 w-6 h-6 text-theme-accent bg-theme-panel p-0.5" />
     </div>
   );
 }
