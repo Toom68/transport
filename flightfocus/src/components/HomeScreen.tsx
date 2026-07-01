@@ -17,21 +17,21 @@ function TransportLogo({ className }: { className?: string }) {
         {/* Ring */}
         <circle cx="32" cy="32" r="26" stroke="currentColor" strokeWidth="2.5" className="text-theme-accent-border" />
         {/* Background patches to hide ring behind icons */}
-        <circle cx="32" cy="6" r="7" fill="var(--color-panel-solid, #24211c)" />
-        <circle cx="9.4" cy="45" r="6" fill="var(--color-panel-solid, #24211c)" />
-        <circle cx="54.6" cy="45" r="6" fill="var(--color-panel-solid, #24211c)" />
+        <circle cx="32" cy="6" r="18" fill="var(--color-panel-solid, #24211c)" />
+        <circle cx="9.4" cy="45" r="16" fill="var(--color-panel-solid, #24211c)" />
+        <circle cx="54.6" cy="45" r="16" fill="var(--color-panel-solid, #24211c)" />
         {/* Plane — top (90deg) */}
-        <g transform="translate(32, 6)">
+        <g transform="translate(32, 6) scale(3.5)">
           <path d="M0-5l-1.5 3-4 1.2v1l4-.6v2.4l-1 .8v.6l2.5-.5 2.5.5v-.6l-1-.8V-.6l4 .6v-1L1.5-2z" fill="currentColor" className="text-theme-accent" />
         </g>
         {/* Car — bottom left (210deg) */}
-        <g transform="translate(9.4, 45) scale(0.85)">
+        <g transform="translate(9.4, 45) scale(2.98)">
           <path d="M-5 0l.5-2 1.5-1h3l1.5 1 .5 2v2h-7z" fill="currentColor" className="text-theme-accent" />
           <circle cx="-3" cy="2.5" r="1.2" fill="none" stroke="currentColor" strokeWidth="1" className="text-theme-accent" />
           <circle cx="1" cy="2.5" r="1.2" fill="none" stroke="currentColor" strokeWidth="1" className="text-theme-accent" />
         </g>
         {/* Anchor — bottom right (330deg) */}
-        <g transform="translate(54.6, 45) scale(0.85)">
+        <g transform="translate(54.6, 45) scale(2.98)">
           <circle cx="0" cy="-4" r="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-theme-accent" />
           <line x1="0" y1="-2.5" x2="0" y2="3" stroke="currentColor" strokeWidth="1.5" className="text-theme-accent" />
           <line x1="-2.5" y1="0" x2="2.5" y2="0" stroke="currentColor" strokeWidth="1.5" className="text-theme-accent" />
